@@ -18,7 +18,7 @@ class Drug:
 
     parameters: np.array
         [a, n, s]
-        # TODO parameters a, n, s, what do they mean?
+        # TODO: Docu parameters a, n, s, what do they mean?
 
     dose_data: np.array
         doses from the dose-response data
@@ -55,7 +55,8 @@ class Drug:
         self.monotone_increasing = monotone_increasing
         self.control_response = control_response
 
-        self._set_dose_and_response(dose_data, response_data)
+        if dose_data is not None and response_data is not None:
+            self._set_dose_and_response(dose_data, response_data)
 
     def get_response(self,
                      dose: float,
@@ -67,7 +68,7 @@ class Drug:
         gradient -> if True, you also return the gradient...
         """
         # gives single dose response,
-        # #(Only if theIF THEY ARE NOT None!!!!)
+        #
         # TODO: Docu, implement
         raise NotImplementedError
 
@@ -85,21 +86,25 @@ class Drug:
         # TODO: Docu, implement
         raise NotImplementedError
 
-    def evaluate_lsq_residual(self, parameters: np.array):
+    def evaluate_lsq_residual(self,
+                              parameters: np.array,
+                              gradient: bool):
         # Evaluates the LSQ residual for given parameters AND returns gradient
         # VECTORIZE!!!
 
         raise NotImplementedError
 
-    def fit_parameters(self, ):
+    def fit_parameters(self,
+                       n_starts: int = 10):
         # Fit the data (LSQ here...), here you can use scipy optimizers...
-        # try to get this as fast as possible...
+        # Store the parameters as self.parameters afterwards
+        # TRY TO GET THIS AS FAST AS POSSIBLE, WILL BE CALLED THOUSANDS OF TIMES!!!
 
         raise NotImplementedError
 
-    def _get_initial_parameters(self,
-                                bounds: np.array,
-                                n_starts: int = 10):
+    def _get_optimizations_starts(self,
+                                  bounds: np.array,
+                                  n_starts: int = 10):
         # Sample initial values in the bounds via Latin Hypercube sampling...
 
         raise NotImplementedError
