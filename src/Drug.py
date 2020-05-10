@@ -14,18 +14,19 @@ class Drug:
 
     The hill curve is parametrized as
 
-                        w_0 + s*x^n /(a+x^n)
+                        w_0 + s*x^n /(a^n+x^n)
 
     Attributes
     ----------
 
     parameters: np.array
         [a, n, s]
-        w_0 der Effekt ohne Drug (bekannt)
-        s: der maximale Effekt
-        n: Hill-Coeffizient
-        a: Quasi der Half-Max (Half-Max ist a^{1/n}
-        # TODO: Docu parameters a, n, s, what do they mean?
+        s: float
+            maximal effect
+        n: float
+            Hill-Coefficient
+        a: float
+            Half-Max
 
     dose_data: np.array
         doses from the dose-response data
@@ -45,7 +46,24 @@ class Drug:
     Drug: Drug
         Constructor
 
-    # Docu TODO
+    get_response:
+        calculates response for given parameters and single dose and returns gradient if requested
+
+    get_multiple_responses:
+        calculates responses for given parameters and multiple doses and returns gradients if requested
+
+    evaluate_lsq_residual:
+        Evaluates the LSQ residual for given parameters and returns gradient if requested
+
+    fit_parameters:
+        fits parameters to data and stores new parameters in drug
+
+    _get_optimizations_starts:
+        samples initial values in the bounds via Latin Hypercube sampling
+
+    _set_dose_and_response:
+        sets dose and response data. Checks dimensions
+
     """
 
     def __init__(self,
@@ -68,26 +86,60 @@ class Drug:
     def get_response(self,
                      dose: float,
                      parameters: np.array = None,
-                     gradient: bool = False):
-        """
-               dose -> Dose
-               parameters -> parameters, if none use the parameters from the Drug
-               gradient -> if True, you also return the gradient...
-               #drug class hat eigentlich noch w_o und monotone incresing...
-               gives single dose response
+                     control_response = None,
+                     gradient: bool = False,
+                     monotone_increasing: bool = None):
+        """ calculates response for given parameters and single dose and returns gradient if requested
+
+        If parameters, control_response or monotone_increasing are not given, values of the drug will be used.
+
+            Parameters
+            ----------
+            dose: float
+                dose of the given drug
+
+            parameters: np.array
+                parameters a, n and s of the hill curve
+
+            control_response: float
+                effect without drug, for hill curve
+
+            gradient: bool
+                decides wether gradient should be returned as well
+
+            monotone_increasing: bool
+                decides wether hill curve is monotone increasing or decreasing
+
+            Returns
+            -------
+            response_value: float
+                by hill curve predicted response for drug and dose
+
+            grad: np.array
+                gradient of hill curve at dose dose
+
                """
+        if monotone_increasing is None:
+            monotone_increasing = self.monotone_increasing
         if parameters is None:
             parameters = self.parameters
+        if control_response is None:
+            control_response = self.control_response
         a = parameters[0]
         n = parameters[1]
         s = parameters[2]
-        response_value: float = s * dose ** n / (a + dose ** n)
+        if monotone_increasing:
+            response_value: float = control_response + s * dose ** n / (a ** n + dose ** n)
+        else:
+            response_value: float = control_response - s * dose ** n / (a ** n + dose ** n)
         if not gradient:
             return response_value
         grad = np.array([np.nan, np.nan, np.nan])
-        grad[0] = -s * dose ** n / ((a + dose ** n) ** 2)
-        grad[1] = a * s * dose ** n * math.log(dose) / ((a + dose ** n) ** 2)
-        grad[2] = dose ** n / (a + dose ** n)
+        grad[0] = -s * dose ** n * a ** (n-1) * n / ((a ** n + dose ** n) ** 2)
+        grad[1] = a ** n * s * dose ** n * (math.log(dose) -  math.log(a)) / ((a ** n + dose ** n) ** 2)
+        grad[2] = dose ** n / (a ** n + dose ** n)
+        if not monotone_increasing:
+            grad = -grad
         return response_value, grad
 
 
@@ -95,13 +147,35 @@ class Drug:
                                doses: np.array,
                                parameters: np.array = None,
                                gradient: bool = False):
-        """
-               dose -> Dose
-               parameters -> parameters, if none use the parameters from the Drug
-               gradient -> if True, you also return the gradient...
+
+        """calculates responses for given parameters and multiple doses and returns gradients if requested
+
+        Uses get_response to calculate results for each dose.
+
+        Paramters
+        ---------
+
+        doses: np.array
+            doses for which results shall be calculated
+
+        parameters: np.array
+                parameters a, n and s of the hill curve
+
+        gradient: bool
+                decides wether gradient should be returned
+
+        Returns
+        -------
+
+        responses: np.array
+            responses predicted by hill curve for doses doses
+
+        grad: np.array
+            gradients of hill curve at doses doses
+
           """
         l = len(doses)
-        responses = np.nan * np.ones((l, 1))
+        responses = np.nan * np.ones(l)
         if not gradient:
             for i in range(l):
                 responses[i] = self.get_response(doses[i], parameters, False)
@@ -116,34 +190,64 @@ class Drug:
     def evaluate_lsq_residual(self,
                               parameters: np.array,
                               gradient: bool):
-        """
-        Evaluates the LSQ residual for given parameters AND returns gradient
+        """ Evaluates the LSQ residual for given parameters AND returns gradient if requested
+
+        Uses responses and grad of get_multiple_responses to calculate the lsq residual and its gradient (if requested)
+        for hill curve parameters
+
+        Parameters
+        ----------
+
+        parameters: np.array
+            hill curve parameters
+
+        gradient: bool
+            decides wether gradient shall be calculated
+
+        Returns
+        -------
+
+        lsq_residual: float
+            lsq_residual of hill curve and Drug
+
+        grad: np.array
+            gradient of lsq_residual regarding hill curve parameters for doses self.doses
+
         """
         lsq_residual = 0
+        responses = self.get_multiple_responses(self.dose_data, parameters)
         for i in range(len(self.response_data)):
-            lsq_residual += (self.response_data[i] - (
-                    self.control_response + parameters[2] * self.dose_data[i] ** parameters[1] /
-                        (parameters[0] + self.dose_data[i] ** parameters[1]))) ** 2
+            lsq_residual += (self.response_data[i] - responses[i]) ** 2
         lsq_residual = lsq_residual
         if not gradient:
             return lsq_residual
         (responses, responses_grad) = self.get_multiple_responses(self.dose_data, parameters, True)
-        grad = responses_grad.dot(np.add(-2*self.dose_data,2*responses))
+        grad = np.dot(responses_grad, 2 * (responses - self.dose_data))
         return lsq_residual, grad
 
 
     def fit_parameters(self,
                        n_starts: int = 10):
-        """
-        fits parameters to data and stores new parameters in drug
+        """ fits parameters to data and stores new parameters in drug
+
+        Uses minimize (scipy) to minimize evaluate_lsq_residual using its gradient as well. Iterates over n_starts by
+        _get_optimization_starts sampled initialValues and returns and stores the parameters of the minimal result.
+
+        Parameters
+        ----------
+
+        n_starts: int
+            number of initialValues for minimization
+
+        Returns
+        -------
+
+        minimum_parameters: np.array
+            parameters that minimize the lsq_residual of drug
         """
 
         def lsq(parameters):
-            return self.evaluate_lsq_residual(parameters, False)
-
-        def lsq_grad(parameters):
-            (lsq, grad) = self.evaluate_lsq_residual(parameters, True)
-            return grad
+            return self.evaluate_lsq_residual(parameters, True)
 
 
         b = (0, 9)
@@ -153,7 +257,7 @@ class Drug:
         minimum_value = float('inf')
         minimum_parameters = None
         for i in range(n_starts):
-            solution = minimize(lsq, initialValues[i], method='SLSQP', bounds=bounds)#Todo gradienten mit einbeziehen
+            solution = minimize(lsq, initialValues[i], method='TNC', jac=True, bounds=bounds)
             if solution.fun < minimum_value:
                 minimum_value = solution.fun
                 minimum_parameters = solution.x
@@ -164,8 +268,20 @@ class Drug:
     def _get_optimizations_starts(self,
                                   bounds: tuple,
                                   n_starts: int = 10):
-        """
-        Sample initial values in the bounds via Latin Hypercube sampling...
+        """Samples initial values in the bounds via Latin Hypercube sampling.
+
+        Parameters
+        ----------
+        bounds: tuple
+            the bounds in which sampled values should be
+
+        n_starts: int
+            number of sampled values
+
+        Returns
+        -------
+        initialValues:
+            initialValues for parameter optimization
         """
         initialValues = [[0] * 3 for i in range(n_starts)]
         perm_a = np.random.permutation(n_starts)
@@ -185,6 +301,7 @@ class Drug:
         sets dose and response data. Checks dimensions
 
 
+
         """
 
         if dose_data.size == response_data.size:
@@ -194,20 +311,4 @@ class Drug:
             raise RuntimeError
 
 
-if __name__ == '__main__':
-
-    w_0 = 0.5
-    dose_data = np.array([1, 2, 3, 4])
-    response_data = np.array([5, 6, 7, 8])
-    test_drug: Drug = Drug(dose_data, response_data, monotone_increasing=True,
-                     control_response=w_0)
-    test_drug.parameters = np.array([3, 2, 1])
-
-    #test fit_parameters
-
-    print(test_drug.parameters)
-
-    solution = test_drug.fit_parameters(10)
-    print(solution)
-    print(test_drug.parameters)
 
