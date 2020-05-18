@@ -36,7 +36,7 @@ class TestDrug(unittest.TestCase):
         """
         # Zero Dose:
         # ----------
-       w_0 = 0.5
+        w_0 = 0.5
         test_drug = Drug(monotone_increasing=True,
                          control_response=w_0)
         test_drug.parameters = np.array([3, 2, 1])

@@ -6,7 +6,6 @@ import math
 from scipy.optimize import minimize
 
 
-
 class Drug:
     """
     Drug stores a parametric representation of a dose response curve
@@ -86,9 +85,7 @@ class Drug:
     def get_response(self,
                      dose: float,
                      parameters: np.array = None,
-                     control_response = None,
-                     gradient: bool = False,
-                     monotone_increasing: bool = None):
+                     gradient: bool = False):
         """ calculates response for given parameters and single dose and returns gradient if requested
 
         If parameters, control_response or monotone_increasing are not given, values of the drug will be used.
@@ -119,12 +116,11 @@ class Drug:
                 gradient of hill curve at dose dose
 
                """
-        if monotone_increasing is None:
-            monotone_increasing = self.monotone_increasing
+
         if parameters is None:
             parameters = self.parameters
-        if control_response is None:
-            control_response = self.control_response
+        monotone_increasing = self.monotone_increasing
+        control_response = self.control_response
         a = parameters[0]
         n = parameters[1]
         s = parameters[2]
@@ -135,13 +131,14 @@ class Drug:
         if not gradient:
             return response_value
         grad = np.array([np.nan, np.nan, np.nan])
-        grad[0] = -s * dose ** n * a ** (n-1) * n / ((a ** n + dose ** n) ** 2)
-        grad[1] = a ** n * s * dose ** n * (math.log(dose) -  math.log(a)) / ((a ** n + dose ** n) ** 2)
+        grad[0] = -s * dose ** n * a ** (n - 1) * n / ((a ** n + dose ** n) ** 2)
+        if not (dose==0):#without this math domain errors may happen
+            if not (a==0):
+                grad[1] = a ** n * s * dose ** n * (math.log(dose) - math.log(a)) / ((a ** n + dose ** n) ** 2)
         grad[2] = dose ** n / (a ** n + dose ** n)
         if not monotone_increasing:
             grad = -grad
         return response_value, grad
-
 
     def get_multiple_responses(self,
                                doses: np.array,
@@ -186,7 +183,6 @@ class Drug:
         grad = np.transpose(grad)
         return responses, grad
 
-
     def evaluate_lsq_residual(self,
                               parameters: np.array,
                               gradient: bool):
@@ -225,7 +221,6 @@ class Drug:
         grad = np.dot(responses_grad, 2 * (responses - self.dose_data))
         return lsq_residual, grad
 
-
     def fit_parameters(self,
                        n_starts: int = 10):
         """ fits parameters to data and stores new parameters in drug
@@ -249,7 +244,6 @@ class Drug:
         def lsq(parameters):
             return self.evaluate_lsq_residual(parameters, True)
 
-
         b = (0, 9)
         bounds = (b, b, b)
         initialValues = self._get_optimizations_starts(bounds, n_starts)
@@ -263,7 +257,6 @@ class Drug:
                 minimum_parameters = solution.x
         self.parameters = minimum_parameters
         return minimum_parameters
-
 
     def _get_optimizations_starts(self,
                                   bounds: tuple,
@@ -288,11 +281,10 @@ class Drug:
         perm_n = np.random.permutation(n_starts)
         perm_s = np.random.permutation(n_starts)
         for i in range(n_starts):
-            initialValues[i] = [bounds[0][0] + (bounds[0][1] - bounds[0][0])/ n_starts* (perm_a[i] + 0.5),
-                                bounds[1][0] + (bounds[1][1] - bounds[1][0])/ n_starts* (perm_n[i] + 0.5),
-                                bounds[2][0] + (bounds[2][1] - bounds[2][0])/ n_starts* (perm_s[i] + 0.5)]
+            initialValues[i] = [bounds[0][0] + (bounds[0][1] - bounds[0][0]) / n_starts * (perm_a[i] + 0.5),
+                                bounds[1][0] + (bounds[1][1] - bounds[1][0]) / n_starts * (perm_n[i] + 0.5),
+                                bounds[2][0] + (bounds[2][1] - bounds[2][0]) / n_starts * (perm_s[i] + 0.5)]
         return initialValues
-
 
     def _set_dose_and_response(self,
                                dose_data: np.array,
@@ -309,6 +301,3 @@ class Drug:
             self.response_data = response_data
         else:
             raise RuntimeError
-
-
-
