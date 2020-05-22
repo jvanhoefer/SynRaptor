@@ -60,21 +60,22 @@ class Combination:
             grad: np.array
                 TODO not implemented yet
             """
-            if not self._check_bliss_requirements(dose_combination):
-                raise RuntimeError
-            if drug_list[0].monotone_increasing:
+            self._check_bliss_requirements()
+
+            # For monotone increasing drugs the Bliss response is 1-prod(1-y_i)
+            if self.drug_list[0].monotone_increasing:
                 prod = 1
-                for i in range(len(drug_list)):
-                    prod *= 1 - drug_list[i].get_response(dose_combination[i])
+                for i in range(len(self.drug_list)):
+                    prod *= 1 - self.drug_list[i].get_response(dose_combination[i])
                 return 1 - prod
+            # For monotone decreasing drugs the Bliss response is prod(y_i)
             else:
                 prod = 1
-                for i in range(len(drug_list)):
-                    prod *= drug_list[i].get_response(dose_combination[i])
+                for i in range(len(self.drug_list)):
+                    prod *= self.drug_list[i].get_response(dose_combination[i])
                 return prod
 
-    def _check_bliss_requirements(self,
-                             dose_combination: np.array):
+    def _check_bliss_requirements(self):
         """
         Checks if requirements for get_bliss_response are fulfilled.
 
@@ -83,19 +84,16 @@ class Combination:
         For decreasing drugs the control_response has to be 1 and the parameter s of Hill curve <=1. If one requirement
         is not met, False is returned. Otherwise True is returned.
         """
-        if drug_list[0].monotone_increasing:
-            for i in range(len(drug_list)):
-                if drug_list[i].parameters[2] > 1:
-                    return False
-            if not (drug_list[0].control_response == 0):
-                return False
+        for i in range(len(self.drug_list)):
+            if self.drug_list[i].parameters[2] > 1:
+                raise RuntimeError('parameter s should not be larger than 1')
+        if self.drug_list[0].monotone_increasing:
+            if not (self.drug_list[0].control_response == 0):
+                raise RuntimeError('control response should be 0')
         else:
-            for i in range(len(drug_list)):
-                if drug_list[i].parameters[2] > 1:
-                    return False
-            if not (drug_list[0].control_response == 1):
-                return False
-        return True
+            if not (self.drug_list[0].control_response == 1):
+                raise RuntimeError('control response should be 1')
+        return
 
     def get_hand_response(self,
                           dose_combination: np.array,
@@ -133,21 +131,27 @@ class Combination:
             grad: np.array
                 TODO not implemented yet
             """
+            responses = [drug_list[i].get_response(dose_combination[i]) for i in range(len(self.drug_list))]
             if drug_list[0].monotone_increasing:
+                return np.max(responses)
+            else:
+                return np.min(responses)
+            """
+            if self.drug_list[0].monotone_increasing:#TODO siehe skype
                 response = - float('inf')
-                for i in range(len(drug_list)):
-                    temp = drug_list[i].get_response(dose_combination[i])
+                for i in range(len(self.drug_list)):
+                    temp = self.drug_list[i].get_response(dose_combination[i])
                     if temp > response:
                         response = temp
                 return response
             else:
                 response = float('inf')
-                for i in range(len(drug_list)):
-                    temp = drug_list[i].get_response(dose_combination[i])
+                for i in range(len(self.drug_list)):
+                    temp = self.drug_list[i].get_response(dose_combination[i])
                     if temp < response:
                         response = temp
                 return response
-
+"""
 
     def get_loewe_significance(self,
                                dose_combination: np.array,
@@ -221,9 +225,9 @@ class Combination:
 
         raise NotImplementedError
 
-"""
-This code may be used for testing.
 
+#This code may be used for testing.
+print('hallo')
 x = np.array([1,2,3,4,5])
 y = np.array([2,4,6,6,7])
 z = np.array([1,2,4,5,7])
@@ -251,5 +255,4 @@ dose = np.array([0.5,0.5,0.5])
 res = Comb.get_hsa_response(dose, False)
 
 res2 = Comb.get_bliss_response(dose, False)
-print(res2)
-"""
+print(res)

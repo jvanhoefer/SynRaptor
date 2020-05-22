@@ -132,9 +132,7 @@ class Drug:
             return response_value
         grad = np.array([np.nan, np.nan, np.nan])
         grad[0] = -s * dose ** n * a ** (n - 1) * n / ((a ** n + dose ** n) ** 2)
-        if not (dose==0):#without this math domain errors may happen
-            if not (a==0):
-                grad[1] = a ** n * s * dose ** n * (math.log(dose) - math.log(a)) / ((a ** n + dose ** n) ** 2)
+        grad[1] = a ** n * s * dose ** n * (math.log(dose) - math.log(a)) / ((a ** n + dose ** n) ** 2)
         grad[2] = dose ** n / (a ** n + dose ** n)
         if not monotone_increasing:
             grad = -grad
@@ -244,7 +242,7 @@ class Drug:
         def lsq(parameters):
             return self.evaluate_lsq_residual(parameters, True)
 
-        b = (0, 9)
+        b = (1e-8, 9)
         bounds = (b, b, b)
         initialValues = self._get_optimizations_starts(bounds, n_starts)
 

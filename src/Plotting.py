@@ -25,9 +25,9 @@ def plot_responses(drug: Drug):
     Plots the dose and response data of a drug drug.
     """
     plt.figure('plot_responses')
-    drug.dose_data.sort()
-    drug.response_data.sort()
-    plt.plot(drug.dose_data, drug.response_data)
+    #drug.dose_data.sort()
+    #drug.response_data.sort()# np.argsort
+    plt.plot(drug.dose_data, drug.response_data, linestyle='None', marker='.')
 
     #design
     plt.title('dose response curve')
@@ -68,27 +68,27 @@ def plot_noise(drug: Drug):
     """
     plt.figure('plot_noise')
     if drug.parameters is None:
-        drug.fit_parameters(100)
+        drug.fit_parameters(10)
     #parameters_plot
     a = drug.parameters[0]
     n = drug.parameters[1]
     s = drug.parameters[2]
     x = np.linspace(0, 2 * a, 100)  # 100 values from 0 to 2*a, as a is the Half-Max of Hill curve.
     y = drug.control_response + s * x ** n / (a ** n + x ** n)
-    plt.plot(x, y, label='old parameters')
+    plt.plot(x, y, label='true parameters')
 
     # responses_plot
     noise_response(drug)
-    plt.plot(drug.dose_data, drug.response_data, linestyle='None', marker = '.', label = 'responses+gaussian noise')
+    plt.plot(drug.dose_data, drug.response_data, linestyle='None', marker = '.', label = 'data')
 
     #new parameters plot
-    D.fit_parameters(100)
+    D.fit_parameters(10)
     a = drug.parameters[0]
     n = drug.parameters[1]
     s = drug.parameters[2]
     x = np.linspace(0, 2 * a, 100)  # 100 values from 0 to 2*a, as a is the Half-Max of Hill curve.
     y = drug.control_response + s * x ** n / (a ** n + x ** n)
-    plt.plot(x, y, linestyle = '--', label='new parameters')
+    plt.plot(x, y, linestyle = '--', label='fitted hill curve')
 
     #design
     plt.title('Hill curves')
@@ -125,7 +125,7 @@ def plot_drug(D: Drug):
 
     #responses plot
     D.dose_data.sort()
-    D.response_data.sort()
+    D.response_data.sort()#TODO numpy.argsort
     plt.plot(D.dose_data, D.response_data, linestyle='None', marker='.', label='responses')
 
     #design
@@ -135,18 +135,16 @@ def plot_drug(D: Drug):
     plt.legend
     plt.show()
 
-"""
 
-The following may be used to test the functions:
+#The following may be used to test the functions:
 
 x = np.array([2,7,3,4,5])
 y = np.array([2,4,9,7,8])
 
 D = Drug.Drug(x,y)
 
-plot_responses(D)
-plot_parameters(D)
+#plot_responses(D)
+#plot_parameters(D)
 plot_noise(D)
-plot_drug(D)
+#plot_drug(D)
 
-"""
