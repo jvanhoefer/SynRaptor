@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from src import Drug
+from SynRaptor import drug
 
 """
 plot_responses(drug: Drug):
@@ -20,7 +20,7 @@ plot_drug(D: Drug):
 
 """
 
-def plot_responses(drug: Drug):
+def plot_responses(drug: drug):
     """
     Plots the dose and response data of a drug drug.
     """
@@ -35,7 +35,7 @@ def plot_responses(drug: Drug):
     plt.ylabel('response')
     plt.show()
 
-def plot_parameters(drug: Drug):
+def plot_parameters(drug: drug):
     """
     Plots a Hill curve according to the parameters of a Drug drug.
     If drug does not have parameters yet, the parameters will be determined via drug.fit_parameters() and stored in drug
@@ -56,7 +56,7 @@ def plot_parameters(drug: Drug):
     plt.title('Hill curve')
     plt.show()
 
-def plot_noise(drug: Drug):
+def plot_noise(drug: drug):
     """
     Visualises the accuracy of fit_parameters().
 
@@ -98,7 +98,7 @@ def plot_noise(drug: Drug):
     plt.show()
 
 
-def noise_response(D: Drug):
+def noise_response(D: drug):
     """
     Generates and stores response_data to dose_data through adding gaussian noise on results of get_multiple_responses.
     """
@@ -109,7 +109,7 @@ def noise_response(D: Drug):
     D.response_data = y
 
 
-def plot_drug(D: Drug):
+def plot_drug(D: drug):
     """
     Plots the Hill curve according to parameters of Drug D and dose response data points of D.
     """
@@ -141,7 +141,7 @@ def plot_drug(D: Drug):
 x = np.array([2,7,3,4,5])
 y = np.array([2,4,9,7,8])
 
-D = Drug.Drug(x,y)
+D = drug.Drug(x, y)
 
 #plot_responses(D)
 #plot_parameters(D)

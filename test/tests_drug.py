@@ -4,7 +4,7 @@ import warnings
 import numpy as np
 import scipy.optimize as opt
 
-from src.Drug import Drug
+from SynRaptor.drug import Drug
 
 
 class TestDrug(unittest.TestCase):
@@ -39,19 +39,19 @@ class TestDrug(unittest.TestCase):
         w_0 = 0.5
         test_drug = Drug(monotone_increasing=True,
                          control_response=w_0)
-        test_drug.parameters = np.array([3, 2, 1])
+        test_drug.parameters = np.array([4, 2, 1])
 
         self.assertAlmostEqual(test_drug.get_response(0), w_0)
 
         # Half max:
         # ---------
-        # Due to the parameter choice we expect (a=4, n=2)
-        # 2 = sqrt(4) to be the halve max. This is tested.
+        # Due to the parameter choice we expect a=4 to be
+        # the halve max. This is tested.
 
         test_drug = Drug(monotone_increasing=True)
         test_drug.parameters = np.array([4, 2, 1])
 
-        self.assertAlmostEqual(test_drug.get_response(2), 0.5)
+        self.assertAlmostEqual(test_drug.get_response(4), 0.5)
 
     def test_evaluate_multiple_responses(self):
         """
@@ -70,7 +70,7 @@ class TestDrug(unittest.TestCase):
 
         results = test_drug.get_multiple_responses(np.arange(100), parameters)
 
-        self.assertAlmostEqual(expected_results, results)
+        np.testing.assert_allclose(expected_results, results)
 
     def test_gradient_response(self):
         """
@@ -79,7 +79,7 @@ class TestDrug(unittest.TestCase):
         checks for different doses AND parameters AND increasing True/False
         """
         increasing = [True, False]
-        doses = [0, 5, 10, 20, 50, 100]
+        doses = [0.1, 5, 10, 20, 50, 100]
         parameters = [np.array([3, 2, 1]),
                       np.array([1, 1, 1]),
                       np.array([3, 2, 5])]
@@ -119,7 +119,7 @@ class TestDrug(unittest.TestCase):
         for residual in [0, 1, 2]:
             # via response+residual we now the (pointwise) residual
             test_drug._set_dose_and_response(doses, response+residual)
-            expected_lsq_residual = residual * n_doses
+            expected_lsq_residual = residual**2 * n_doses
             obtained_lsq_residual = test_drug.evaluate_lsq_residual(test_parameters)
 
             self.assertAlmostEqual(expected_lsq_residual, obtained_lsq_residual)
@@ -138,16 +138,25 @@ class TestDrug(unittest.TestCase):
 
         for (inc, dose, parameter) in zip(increasing, doses, parameters):
 
-            test_drug = Drug(monotone_increasing=inc,
+            # compute synthetic data:
+            synthetic_data_drug = Drug(monotone_increasing=inc,
+                                       control_response=0)
+
+            synthetic_data = synthetic_data_drug.\
+                get_multiple_responses(doses, parameters[0])
+
+            test_drug = Drug(dose_data=doses,
+                             response_data=synthetic_data,
+                             monotone_increasing=inc,
                              control_response=0)
 
             # TODO Fix inputs for evaluate_lsq_residuals
 
             def f(p):
-                return test_drug.evaluate_lsq_residual(dose, p, False)
+                return test_drug.evaluate_lsq_residual(p, False)
 
             def grad(p):
-                return test_drug.evaluate_lsq_residual(dose, p, True)[1]
+                return test_drug.evaluate_lsq_residual(p, True)[1]
 
             difference = opt.check_grad(f, grad, parameter)
 
@@ -160,7 +169,7 @@ class TestDrug(unittest.TestCase):
         """
         Tests the fitting procedure.
 
-        We test, if for noise free data the (pointwise) residuals are close to zero...
+        We test, if for noise free data the (point wise) residuals are close to zero...
         """
 
         test_parameters = np.array([5, 2, 2])

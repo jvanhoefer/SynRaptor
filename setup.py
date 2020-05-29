@@ -14,5 +14,5 @@ setup(
     install_requires=['numpy >= 1.15',
                       'scipy >= 1.3',
                       'matplotlib >= 3'],
-    package_dir={'': 'src'}
+    package_dir={'': 'SynRaptor'}
 )
