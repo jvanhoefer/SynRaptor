@@ -138,13 +138,13 @@ def plot_drug(D: Drug):
 
 #The following may be used to test the functions:
 
-x = np.array([2,7,3,4,5])
-y = np.array([2,4,9,7,8])
+x = np.array([2,2.5,3,4,5])
+y = np.array([2,3,4,7,8])
 
 D = Drug.Drug(x,y)
 
-#plot_responses(D)
-#plot_parameters(D)
+plot_responses(D)
+plot_parameters(D)
 plot_noise(D)
-#plot_drug(D)
+plot_drug(D)
 
