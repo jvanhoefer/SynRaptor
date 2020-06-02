@@ -20,12 +20,12 @@ class Drug:
 
     parameters: np.array
         [a, n, s]
-        s: float
-            maximal effect
-        n: float
-            Hill-Coefficient
         a: float
             Half-Max
+        n: float
+            Hill-Coefficient
+        s: float
+            maximal effect
 
     dose_data: np.array
         doses from the dose-response data
@@ -88,7 +88,7 @@ class Drug:
                      gradient: bool = False):
         """ calculates response for given parameters and single dose and returns gradient if requested
 
-        If parameters, control_response or monotone_increasing are not given, values of the drug will be used.
+        If parameters are not given, self.parameters of the drug will be used.
 
             Parameters
             ----------
@@ -98,14 +98,8 @@ class Drug:
             parameters: np.array
                 parameters a, n and s of the hill curve
 
-            control_response: float
-                effect without drug, for hill curve
-
             gradient: bool
-                decides wether gradient should be returned as well
-
-            monotone_increasing: bool
-                decides wether hill curve is monotone increasing or decreasing
+                decides whether gradient should be returned as well
 
             Returns
             -------
@@ -147,7 +141,7 @@ class Drug:
 
         Uses get_response to calculate results for each dose.
 
-        Paramters
+        Parameters
         ---------
 
         doses: np.array
@@ -183,7 +177,7 @@ class Drug:
 
     def evaluate_lsq_residual(self,
                               parameters: np.array,
-                              gradient: bool):
+                              gradient: bool = False):
         """ Evaluates the LSQ residual for given parameters AND returns gradient if requested
 
         Uses responses and grad of get_multiple_responses to calculate the lsq residual and its gradient (if requested)
@@ -196,7 +190,7 @@ class Drug:
             hill curve parameters
 
         gradient: bool
-            decides wether gradient shall be calculated
+            decides whether gradient shall be calculated
 
         Returns
         -------
@@ -274,15 +268,15 @@ class Drug:
         initialValues:
             initialValues for parameter optimization
         """
-        initialValues = [[0] * 3 for i in range(n_starts)]
+        initial_values = [[0] * 3 for i in range(n_starts)]
         perm_a = np.random.permutation(n_starts)
         perm_n = np.random.permutation(n_starts)
         perm_s = np.random.permutation(n_starts)
         for i in range(n_starts):
-            initialValues[i] = [bounds[0][0] + (bounds[0][1] - bounds[0][0]) / n_starts * (perm_a[i] + 0.5),
-                                bounds[1][0] + (bounds[1][1] - bounds[1][0]) / n_starts * (perm_n[i] + 0.5),
-                                bounds[2][0] + (bounds[2][1] - bounds[2][0]) / n_starts * (perm_s[i] + 0.5)]
-        return initialValues
+            initial_values[i] = [bounds[0][0] + (bounds[0][1] - bounds[0][0]) / n_starts * (perm_a[i] + 0.5),
+                                 bounds[1][0] + (bounds[1][1] - bounds[1][0]) / n_starts * (perm_n[i] + 0.5),
+                                 bounds[2][0] + (bounds[2][1] - bounds[2][0]) / n_starts * (perm_s[i] + 0.5)]
+        return initial_values
 
     def _set_dose_and_response(self,
                                dose_data: np.array,
@@ -294,7 +288,7 @@ class Drug:
 
         """
 
-        if dose_data.size == response_data.size:
+        if len(dose_data) == len(response_data):
             self.dose_data = dose_data
             self.response_data = response_data
         else:

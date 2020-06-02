@@ -2,7 +2,7 @@
 """
 import numpy as np
 import scipy as sp
-from src import Drug
+from SynRaptor import drug
 
 
 class Combination:
@@ -233,15 +233,15 @@ y = np.array([2,4,6,6,7])
 z = np.array([1,2,4,5,7])
 
 
-A = Drug.Drug(x,0.0001*y)
+A = drug.Drug(x, 0.0001 * y)
 A.fit_parameters(10)
 
 
-B = Drug.Drug(y,0.0001*z)
+B = drug.Drug(y, 0.0001 * z)
 B.fit_parameters(10)
 
 
-C = Drug.Drug(x,0.0001*z)
+C = drug.Drug(x, 0.0001 * z)
 C.fit_parameters(10)
 
 
