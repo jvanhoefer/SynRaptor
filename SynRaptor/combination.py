@@ -5,6 +5,7 @@ import scipy as sp
 from SynRaptor import drug
 
 
+
 class Combination:
     """
     Combination stores a list of drugs and gives all functionality
@@ -42,7 +43,7 @@ class Combination:
 
             Checks requirements via check_bliss_requirements. For monotone increasing drugs
             the response is calculated as 1 - prod(1- single_response_i). For monotone decreasing drugs as
-            prod(single_response_i). TODO wollen auch gradienten bzgl der einzelnen drug parameter haben.
+            prod(single_response_i). If gradient is True the gradient will be returned as well.
 
             Parameters
             ----------
@@ -58,22 +59,46 @@ class Combination:
                 the response of the combined drug
 
             grad: np.array
-                TODO not implemented yet
+                the gradient
             """
             self._check_bliss_requirements()
+            l = len(self.drug_list)
 
             # For monotone increasing drugs the Bliss response is 1-prod(1-y_i)
             if self.drug_list[0].monotone_increasing:
                 prod = 1
-                for i in range(len(self.drug_list)):
+                for i in range(l):
                     prod *= 1 - self.drug_list[i].get_response(dose_combination[i])
-                return 1 - prod
+                if not gradient:
+                    return 1 - prod
+                # Here the gradient is calculated
+                grad = np.nan * np.ones((l, 3))
+                responses = np.nan * np.ones(l)
+                for i in range(l):
+                    (responses[i], grad[i]) = self.drug_list[i].get_response(dose_combination[i],
+                                                                             self.drug_list[i].parameters, True)
+                    grad[i] = prod / (1 - responses[i]) * grad[i]
+                grad = np.transpose(grad)
+                return 1 - prod, grad
             # For monotone decreasing drugs the Bliss response is prod(y_i)
             else:
                 prod = 1
-                for i in range(len(self.drug_list)):
+                for i in range(l):
                     prod *= self.drug_list[i].get_response(dose_combination[i])
-                return prod
+                if not gradient:
+                    return prod
+                # Here the gradient is calculated
+                grad = np.nan * np.ones((l, 3))
+                responses = np.nan * np.ones(l)
+                for i in range(l):
+                    (responses[i], grad[i]) = self.drug_list[i].get_response(dose_combination[i],
+                                                                             self.drug_list[i].parameters, True)
+                    grad[i] = prod / responses[i] * grad[i]
+                grad = np.transpose(grad)
+                return prod, grad
+
+
+
 
     def _check_bliss_requirements(self):
         """
@@ -233,15 +258,15 @@ y = np.array([2,4,6,6,7])
 z = np.array([1,2,4,5,7])
 
 
-A = drug.Drug(x, 0.0001 * y)
+A = drug.Drug(x, 0.0001 * y, False, 1)
 A.fit_parameters(10)
 
 
-B = drug.Drug(y, 0.0001 * z)
+B = drug.Drug(y, 0.0001 * z, False, 1)
 B.fit_parameters(10)
 
 
-C = drug.Drug(x, 0.0001 * z)
+C = drug.Drug(x, 0.0001 * z, False, 1)
 C.fit_parameters(10)
 
 
@@ -254,5 +279,5 @@ Comb = Combination(drug_list)
 dose = np.array([0.5,0.5,0.5])
 res = Comb.get_hsa_response(dose, False)
 
-res2 = Comb.get_bliss_response(dose, False)
+res2 = Comb.get_bliss_response(dose, True)
 print(res)
