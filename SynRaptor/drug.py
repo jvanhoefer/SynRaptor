@@ -126,11 +126,31 @@ class Drug:
             return response_value
         grad = np.array([np.nan, np.nan, np.nan])
         grad[0] = -s * dose ** n * a ** (n - 1) * n / ((a ** n + dose ** n) ** 2)
-        grad[1] = a ** n * s * dose ** n * (math.log(dose) - math.log(a)) / ((a ** n + dose ** n) ** 2)
+        grad[1] = a ** n * s * dose ** n * math.log(dose / a) / ((a ** n + dose ** n) ** 2)
         grad[2] = dose ** n / (a ** n + dose ** n)
         if not monotone_increasing:
             grad = -grad
         return response_value, grad
+
+    def get_derivative(self,
+                       x: float,
+                       parameters = None):
+        if parameters is None:
+            parameters = self.parameters
+        monotone_increasing = self.monotone_increasing
+        a = parameters[0]
+        n = parameters[1]
+        s = parameters[2]
+        if monotone_increasing:
+            derivative: float = n * s * a**n * x**(n-1) / (a**n + x**n)**2
+        else:
+            derivative: float = - n * s * a**n * x**(n-1) / (a**n + x**n)**2
+        return derivative
+
+    def inverse_evaluate(self,
+                         effect: float):
+        return ((effect - self.control_response) * self.parameters[0] ** self.parameters[1] / \
+                (self.parameters[2] - effect + self.control_response)) ** (1 / self.parameters[1])
 
     def get_multiple_responses(self,
                                doses: np.array,

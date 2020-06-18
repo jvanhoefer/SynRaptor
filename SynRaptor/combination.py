@@ -3,6 +3,9 @@
 import numpy as np
 import scipy as sp
 from SynRaptor import drug
+from scipy.integrate import odeint
+import matplotlib.pyplot as plt
+
 
 
 
@@ -95,7 +98,7 @@ class Combination:
                                                                              self.drug_list[i].parameters, True)
                     grad[i] = prod / responses[i] * grad[i]
                 grad = np.transpose(grad)
-                return prod, grad
+                return prod, grad #TODO grad soll vektor und nicht matrix sein, also append benutzen
 
 
 
@@ -127,7 +130,27 @@ class Combination:
 
             Compute the hand response
             """
-            raise NotImplementedError
+
+
+            def f(y, t,
+                  dose_combination: np.array,
+                  ):
+                l = len(self.drug_list)
+                s = sum(dose_combination)
+                r = 0
+                for i in range(l):
+                    dev = self.drug_list[i].get_derivative(self.drug_list[i].inverse_evaluate(y))
+                    r += (dose_combination[i] / s) * dev
+                return r
+            # initial condition
+            y0 = [1e-7, 1e-7]
+            # timepoints
+            t = np.linspace(1e-7,1)
+            # solve ode
+            y = odeint(f,y0,t, args = (dose_combination,))
+            # wir wollen y[-1] also das letzte element im array
+            return y[-1]
+
 
     def get_hsa_response(self,
                          dose_combination: np.array,
@@ -138,7 +161,8 @@ class Combination:
 
             This function calculates the HSA response, taking into consideration wether the single dose effect curves are
             monotone increasing or not. For monotone increasing drugs the maximal response is returned. For monotone
-            decreasing drugs the minimal response of the single drugs is returned. TODO gradient
+            decreasing drugs the minimal response of the single drugs is returned. The gradient regarding the parameters
+             a, n and s of every single drug can be returned as well.
 
             Parameters
             ----------
@@ -154,29 +178,36 @@ class Combination:
                 the response of the combined drug
 
             grad: np.array
-                TODO not implemented yet
+                gradient (partial derivatives)
             """
             responses = [drug_list[i].get_response(dose_combination[i]) for i in range(len(self.drug_list))]
-            if drug_list[0].monotone_increasing:
-                return np.max(responses)
+            if gradient:
+                if drug_list[0].monotone_increasing:
+                    # monotone increasing and gradient
+                    l = len(self.drug_list)
+                    max = np.argmax(responses)
+                    (response, gradm) = self.drug_list[max].get_response(dose_combination[max],
+                                                                         self.drug_list[max].parameters, True)
+                    grad = np.zeros((l, 3))
+                    grad[max] = gradm
+                    return response, grad
+                else:
+                    # monotone decreasing and gradient
+                    l = len(self.drug_list)
+                    min = np.argmin(responses)
+                    (response, gradm) = self.drug_list[min].get_response(dose_combination[min],
+                                                                         self.drug_list[min].parameters, True)
+                    grad = np.zeros((l, 3))
+                    grad[min] = gradm
+                    return response, grad
             else:
-                return np.min(responses)
-            """
-            if self.drug_list[0].monotone_increasing:#TODO siehe skype
-                response = - float('inf')
-                for i in range(len(self.drug_list)):
-                    temp = self.drug_list[i].get_response(dose_combination[i])
-                    if temp > response:
-                        response = temp
-                return response
-            else:
-                response = float('inf')
-                for i in range(len(self.drug_list)):
-                    temp = self.drug_list[i].get_response(dose_combination[i])
-                    if temp < response:
-                        response = temp
-                return response
-"""
+                if drug_list[0].monotone_increasing:
+                    # monotone increasing without gradient
+                    return np.max(responses)
+                else:
+                    # monotone decreasing without gradient
+                    return np.min(responses)
+
 
     def get_loewe_significance(self,
                                dose_combination: np.array,
@@ -261,6 +292,8 @@ z = np.array([1,2,4,5,7])
 A = drug.Drug(x, 0.0001 * y, False, 1)
 A.fit_parameters(10)
 
+#print(A.get_derivative(7))
+#print(A.inverse_evaluate(7))
 
 B = drug.Drug(y, 0.0001 * z, False, 1)
 B.fit_parameters(10)
@@ -277,7 +310,10 @@ C.parameters[2] = 0.7
 drug_list = [A,B,C]
 Comb = Combination(drug_list)
 dose = np.array([0.5,0.5,0.5])
-res = Comb.get_hsa_response(dose, False)
+#res = Comb.get_hsa_response(dose, True)
 
-res2 = Comb.get_bliss_response(dose, True)
-print(res)
+#res2 = Comb.get_bliss_response(dose, True)
+res3 = Comb.get_hand_response(dose,True)
+#print(res)
+#print(res2)
+print(res3)
