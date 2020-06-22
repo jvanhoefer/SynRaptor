@@ -143,8 +143,8 @@ y = np.array([2,3,4,7,8])
 
 D = drug.Drug(x, y)
 
-plot_responses(D)
-plot_parameters(D)
+#plot_responses(D)
+#plot_parameters(D)
 plot_noise(D)
-plot_drug(D)
+#plot_drug(D)
 

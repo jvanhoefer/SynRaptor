@@ -223,14 +223,18 @@ class Drug:
 
         """
         lsq_residual = 0
-        responses = self.get_multiple_responses(self.dose_data, parameters)
+        if not gradient:
+            responses = self.get_multiple_responses(self.dose_data, parameters)
+            for i in range(len(self.response_data)):
+                lsq_residual += (self.response_data[i] - responses[i]) ** 2
+            lsq_residual = lsq_residual
+            return lsq_residual
+
+        (responses, responses_grad) = self.get_multiple_responses(self.dose_data, parameters, True)
         for i in range(len(self.response_data)):
             lsq_residual += (self.response_data[i] - responses[i]) ** 2
         lsq_residual = lsq_residual
-        if not gradient:
-            return lsq_residual
-        (responses, responses_grad) = self.get_multiple_responses(self.dose_data, parameters, True)
-        grad = np.dot(responses_grad, 2 * (responses - self.dose_data))
+        grad = np.dot(responses_grad, 2 * (responses - self.response_data))
         return lsq_residual, grad
 
     def fit_parameters(self,

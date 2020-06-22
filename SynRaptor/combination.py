@@ -4,6 +4,7 @@ import numpy as np
 import scipy as sp
 from SynRaptor import drug
 from scipy.integrate import odeint
+from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
 
@@ -81,7 +82,7 @@ class Combination:
                     (responses[i], grad[i]) = self.drug_list[i].get_response(dose_combination[i],
                                                                              self.drug_list[i].parameters, True)
                     grad[i] = prod / (1 - responses[i]) * grad[i]
-                grad = np.transpose(grad)
+                grad = self.matrix_to_vector(grad)  # now gradient looks like [a0 n0 s0 a1 n1 s1 ...]
                 return 1 - prod, grad
             # For monotone decreasing drugs the Bliss response is prod(y_i)
             else:
@@ -97,8 +98,8 @@ class Combination:
                     (responses[i], grad[i]) = self.drug_list[i].get_response(dose_combination[i],
                                                                              self.drug_list[i].parameters, True)
                     grad[i] = prod / responses[i] * grad[i]
-                grad = np.transpose(grad)
-                return prod, grad #TODO grad soll vektor und nicht matrix sein, also append benutzen
+                grad = self.matrix_to_vector(grad) #now gradient looks like [a0 n0 s0 a1 n1 s1 ...]
+                return prod, grad
 
 
 
@@ -122,6 +123,290 @@ class Combination:
             if not (self.drug_list[0].control_response == 1):
                 raise RuntimeError('control response should be 1')
         return
+
+
+    def get_multiple_bliss_responses(self,
+                                     dose_combinations: np.array,#2dimensional
+                                     gradient: bool):
+        """
+        Computes multiple Bliss responses using get_bliss_response. Also returns the gradient if wanted.
+
+        Parameters
+        ----------
+        dose_combinations: np.array
+            two dimensional array with dose_combinations[i] containing a dose or each drug in self.drug_list
+
+        gradient: bool
+            determines wether gradients should be returned as well
+
+        Returns
+        -------
+        responses: np.array
+            responses according to Bliss
+
+        grad: np.array
+            two dimensional array so that the ith coloumn corresponds to gradient of bliss at dose_combinations[i]
+        """
+        l = len(dose_combinations)
+        responses = np.nan * np.ones(l)
+        if not gradient:
+            for i in range(l):
+                responses[i] = self.get_bliss_response(dose_combinations[i], False)
+            return responses
+        l2 = len(dose_combinations[0])
+        grad = np.nan * np.ones((l, 3 * l2))
+        for i in range(l):
+            (responses[i], grad[i]) = self.get_bliss_response(dose_combinations[i], True)#row of grad looks like [dda0 ddn0 dds0 dda1 ddn1 dds1 ...].]
+        grad = np.transpose(grad)#coloumn looks like [dda0 ddn0 dds0 dda1 ddn1 dds1 ...]
+        return responses, grad
+
+
+    def evaluate_log_likelihood(self,
+                                responses: np.array,
+                                dose_combinations, #doses[i] is a dose_combination, so doses is a 2 dim array
+                                gradient: bool):
+        """
+        Calculates -2*log-likelihood (or the RSS). Also calculates gradient if wanted.
+
+        Parameters
+        ----------
+        responses: np.array
+            measured responses of drug experiment
+
+        dose_combinations: np.array
+            two dimensional array with dose_combinations[i] containing a dose for each drug in self.drug_list
+
+        gradient: bool
+            determines wether gradients should be returned as well
+
+        Returns
+        -------
+        sum / sigma2: float
+            the log-likelihood
+
+        grad: np.array
+            the gradient of log-likelihood containing partial derivatives for parameters
+
+        """
+        sigma2 = 1 #TODO implement get_sigma
+        sum = 0
+        l = len(responses)
+        if not gradient:
+            prediction = self.get_multiple_bliss_responses(dose_combinations, False)
+            for i in range(l):
+                sum += (responses[i] - prediction[i])**2
+            return sum / sigma2
+
+        (prediction, prediction_grad) = self.get_multiple_bliss_responses(dose_combinations, True)
+        for i in range(l):
+            sum += (responses[i] - prediction[i]) ** 2
+        grad = np.dot(prediction_grad, 2 * (prediction - responses))#grad looks like [dda0 ddn0 dds0 dda1 ddn1 dds1 ...]
+        return sum / sigma2, grad
+
+
+
+
+
+    def evaluate_validation_residual(self,
+                                     validation_response,
+                                     validation_dose: np.array,
+                                     gradient: bool):
+        """
+        Calculates the squared residual of validation data point. Also returns the gradient if wanted.
+
+        Parameters
+        ----------
+        validation_response: float
+            measured response of validation experiment
+
+        validation_dose: np.array
+            dose of validation experiment
+
+        gradient: bool
+            determines wether gradient should be returned as well
+
+        Returns
+        -------
+        residual: float
+            the calculated squared residual of validation experiment
+
+        grad: np.array
+            the gradient of sqaured residual of validation experiment containing partial derivatives for parameters
+
+        """
+        sigma2 = 1 #TODO use get_sigma
+        if not gradient:
+            return ((validation_response - self.get_bliss_response(validation_dose, False)) / sigma2) ** 2
+        (response, grad) = self.get_bliss_response(validation_dose, True)
+        residual = ((validation_response - response) / sigma2) ** 2
+        grad = 2 * grad * (response - validation_response)
+        return residual, grad
+
+
+    def fit_to_old_data(self,
+                         responses: np.array,
+                         doses): #doses[i] is a dose_combination, so doses is a 2 dim array
+        """
+        Fits drug parameters to data.
+
+        Parameters
+        ----------
+        responses: np.array
+            measured responses
+
+        doses: np.array
+            two dimensional array where dose[i] containes dose for each drug in drug_list
+
+        Returns
+        -------
+        minimum_value: float
+            minimal value of -2LL for given doses and responses
+
+        minimum_parameters: np.array
+            optimized parameters that minimize -2LL
+        """
+
+
+        def min2loglikelihood(parameters: np.array): #parameters is array of length 3 * len(drug_list)
+            self.parameters_to_drug_list(parameters)
+            return self.evaluate_log_likelihood(responses, doses, False)
+
+        l = 3 * len(self.drug_list)
+        bounds = np.ones((l), dtype=(float, 2))
+        for i in range(l):
+            bounds[i] = 1e-8, 0.99  # for Bliss s has to be between 0 and 1
+
+        initialParameters = self._get_optimization_starts(bounds, 10)
+        minimum_value = float('inf')
+        minimum_parameters = None
+        for i in range(10):
+            solution = minimize(min2loglikelihood, initialParameters[i], method='TNC', jac=False, bounds=bounds)
+            if solution.fun < minimum_value:
+                minimum_value = solution.fun
+                minimum_parameters = solution.x
+        self.parameters_to_drug_list(minimum_parameters)
+        return minimum_value, minimum_parameters
+
+    def fit_to_full_data(self,
+                         validation_response: float,
+                         validation_dose: np.array,
+                         responses: np.array,
+                         doses): #doses[i] is a dose_combination, so doses is a 2 dim array
+        """
+        Fits drug parameters to data including validation experiment.
+
+        Parameters
+        ----------
+        validation_dose: float
+            response data of validation experiment
+
+        validation_dose: np.array
+            dose_combination for validation experiment
+
+        responses: np.array
+            measured responses before validation experiment
+
+        doses: np.array
+            two dimensional array where dose[i] contains dose for each drug in drug_list
+
+        Returns
+        -------
+        minimum_value: float
+              minimal value of -2LL for given data
+
+        minimum_parameters: np.array
+             optimized parameters that minimize -2LL
+        """
+
+        def min2loglikelihood(parameters: np.array): #parameters is array of length 3 * len(drug_list)
+            self.parameters_to_drug_list(parameters)
+            (r1, grad1) = self.evaluate_log_likelihood(responses, doses, True)
+            (r2, grad2) = self.evaluate_validation_residual(validation_response, validation_dose, True)
+            return r1 + r2, grad1 + grad2
+
+
+        l = 3 * len(self.drug_list)
+        bounds = np.ones((l), dtype=(float,2))
+        for i in range(l):
+            bounds[i] = 1e-8, 0.99 # for Bliss s has to be between 0 and 1
+
+        initialParameters = self._get_optimization_starts(bounds, 10)
+        minimum_value = float('inf')
+        minimum_parameters = None
+        for i in range(10):
+            solution = minimize(min2loglikelihood, initialParameters[i], method='TNC', jac=True, bounds=bounds)
+            if solution.fun < minimum_value:
+                minimum_value = solution.fun
+                minimum_parameters = solution.x
+        self.parameters_to_drug_list(minimum_parameters)
+        return minimum_value, minimum_parameters
+
+
+    def _get_optimization_starts(self,
+                                 bounds: np.array,
+                                 n_starts: int):
+        """
+        Computes initial_values for optimization using Latin Hypercube sampling.
+
+        Parameters
+        ----------
+        bounds: np.array
+            parameter bounds for optimization
+
+        n_starts: int
+            number of optimization starts
+
+        Returns
+        -------
+        np.transpose(initial_values): np.array
+            initial_values for optimization
+        """
+        l = len(bounds)
+        initial_values = [[0] * n_starts for i in range(l)]
+        for i in range(l):
+            perm = np.random.permutation(n_starts)
+            initial_values[i] = np.array([bounds[i][0] + (bounds[i][1] - bounds[i][0]) /\
+                                          n_starts * (perm[j] + 0.5) for j in range(n_starts)])
+        return np.transpose(initial_values)
+
+    def matrix_to_vector(self,
+                         matrix: np.array):
+        """
+        Reshapes two dim array into one dim array.
+        """
+        l1 = len(matrix)
+        l2 = len(matrix[0])
+        vector = np.nan * np.ones(l1*l2)
+        for i in range(l1):
+            for j in range(l2):
+                vector[l2 * i + j] = matrix[i][j]
+        return vector
+
+
+    def parameters_to_drug_list(self,
+                                parameters: np.array):
+        """
+        Saves array of parameters in self.drug_list.
+        """
+        for i in range(len(self.drug_list)):
+            self.drug_list[i].parameters[0] = parameters[3 * i]
+            self.drug_list[i].parameters[1] = parameters[3 * i + 1]
+            self.drug_list[i].parameters[2] = parameters[3 * i + 2]
+        return
+
+
+    def drug_list_to_parameters(self):
+        """
+        Creates array containing the parameters of self.drug_list.
+        """
+        l = len(self.drug_list)
+        parameters = np.nan * np.ones(3*l)
+        for i in range(l):
+            parameters[3 * i] = self.drug_list[i].parameters[0]
+            parameters[3 * i + 1] = self.drug_list[i].parameters[1]
+            parameters[3 * i + 2] = self.drug_list[i].parameters[2]
+        return parameters
+
 
     def get_hand_response(self,
                           dose_combination: np.array,
@@ -302,18 +587,45 @@ B.fit_parameters(10)
 C = drug.Drug(x, 0.0001 * z, False, 1)
 C.fit_parameters(10)
 
+D = drug.Drug(y, 0.0001 * y, False, 1)
+D.fit_parameters(10)
+
 
 A.parameters[2] = 0.4
 B.parameters[2] = 0.3
 C.parameters[2] = 0.7
+D.parameters[2] = 0.2
 
-drug_list = [A,B,C]
+drug_list = [A,B,C,D]
 Comb = Combination(drug_list)
-dose = np.array([0.5,0.5,0.5])
+dose1 = np.array([0.5,0.5,0.5,0.8])
+dose2 = np.array([0.6,0.5,0.5,0.2])
+dose3 = np.array([0.5,0.3,0.5,0.1])
+dosez = np.array([0.5,0.5,0.4,0.6])
+doses = np.array([dose1,dose2, dose3])
+
+
+responses = np.array([0.6,0.8, 0.7])
 #res = Comb.get_hsa_response(dose, True)
 
-#res2 = Comb.get_bliss_response(dose, True)
-res3 = Comb.get_hand_response(dose,True)
+#res2 = Comb.get_bliss_response(dosez, True)
+#res2 = Comb.get_multiple_bliss_responses(doses, True)
+#res4 = Comb.evaluate_log_likelihood(responses,doses, True)
+#res3 = Comb.get_hand_response(dose,True)
 #print(res)
-#print(res2)
-print(res3)
+#print(res4)
+#print(res3)
+
+
+#c = Comb.fit_to_full_data(0.7, dosez,responses,doses)
+#d = Comb.fit_to_old_data(responses, doses)
+#print(c)
+#print(d)
+#p = Comb.drug_list_to_parameters()
+#print(p)
+#Comb.parameters_to_drug_list(p)
+#a = Comb.evaluate_validation_residual(0.7,dosez)
+#b = Comb.evaluate_log_likelihood(responses,doses)
+#print(a)
+#print(b)
+
