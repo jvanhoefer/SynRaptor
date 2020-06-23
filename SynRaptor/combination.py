@@ -8,8 +8,6 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
 
-
-
 class Combination:
     """
     Combination stores a list of drugs and gives all functionality
@@ -87,22 +85,25 @@ class Combination:
             # For monotone decreasing drugs the Bliss response is prod(y_i)
             else:
                 prod = 1
+
                 for i in range(l):
                     prod *= self.drug_list[i].get_response(dose_combination[i])
+
                 if not gradient:
                     return prod
+
                 # Here the gradient is calculated
                 grad = np.nan * np.ones((l, 3))
                 responses = np.nan * np.ones(l)
+
                 for i in range(l):
                     (responses[i], grad[i]) = self.drug_list[i].get_response(dose_combination[i],
                                                                              self.drug_list[i].parameters, True)
                     grad[i] = prod / responses[i] * grad[i]
+
                 grad = self.matrix_to_vector(grad) #now gradient looks like [a0 n0 s0 a1 n1 s1 ...]
+
                 return prod, grad
-
-
-
 
     def _check_bliss_requirements(self):
         """
@@ -124,7 +125,6 @@ class Combination:
                 raise RuntimeError('control response should be 1')
         return
 
-
     def get_multiple_bliss_responses(self,
                                      dose_combinations: np.array,#2dimensional
                                      gradient: bool):
@@ -137,7 +137,7 @@ class Combination:
             two dimensional array with dose_combinations[i] containing a dose or each drug in self.drug_list
 
         gradient: bool
-            determines wether gradients should be returned as well
+            determines whether gradients should be returned as well
 
         Returns
         -------
@@ -159,7 +159,6 @@ class Combination:
             (responses[i], grad[i]) = self.get_bliss_response(dose_combinations[i], True)#row of grad looks like [dda0 ddn0 dds0 dda1 ddn1 dds1 ...].]
         grad = np.transpose(grad)#coloumn looks like [dda0 ddn0 dds0 dda1 ddn1 dds1 ...]
         return responses, grad
-
 
     def evaluate_log_likelihood(self,
                                 responses: np.array,
@@ -203,13 +202,10 @@ class Combination:
         grad = np.dot(prediction_grad, 2 * (prediction - responses))#grad looks like [dda0 ddn0 dds0 dda1 ddn1 dds1 ...]
         return sum / sigma2, grad
 
-
-
-
-
     def evaluate_validation_residual(self,
                                      validation_response,
                                      validation_dose: np.array,
+                                     null_model: str = 'bliss',
                                      gradient: bool):
         """
         Calculates the squared residual of validation data point. Also returns the gradient if wanted.
@@ -234,9 +230,15 @@ class Combination:
             the gradient of sqaured residual of validation experiment containing partial derivatives for parameters
 
         """
+
+        if null_model == 'bliss':
+            get_combination_response = self.get_bliss_response
+        else:
+            ValueError()
+        
         sigma2 = 1 #TODO use get_sigma
         if not gradient:
-            return ((validation_response - self.get_bliss_response(validation_dose, False)) / sigma2) ** 2
+            return ((validation_response - get_combination_response(validation_dose, False)) / sigma2) ** 2
         (response, grad) = self.get_bliss_response(validation_dose, True)
         residual = ((validation_response - response) / sigma2) ** 2
         grad = 2 * grad * (response - validation_response)
