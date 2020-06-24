@@ -302,6 +302,23 @@ class Drug:
                                  bounds[2][0] + (bounds[2][1] - bounds[2][0]) / n_starts * (perm_s[i] + 0.5)]
         return initial_values
 
+
+    def get_sigma2(self):
+        sum = 0
+        a = self.parameters[0]
+        n = self.parameters[1]
+        s = self.parameters[2]
+        x = self.dose_data
+        y = self.response_data
+        d = len(x)
+        for i in range(d):
+            sum += (s * x[i] **n / (a**n+x[i]**n)-y[i])**2
+
+        return sum / d
+
+
+
+
     def _set_dose_and_response(self,
                                dose_data: np.array,
                                response_data: np.array):
