@@ -148,9 +148,12 @@ class Drug:
         return derivative
 
     def inverse_evaluate(self,
-                         effect: float):
-        return ((effect - self.control_response) * self.parameters[0] ** self.parameters[1] / \
-                (self.parameters[2] - effect + self.control_response)) ** (1 / self.parameters[1])
+                         effect: float,
+                         parameters: np.array = None):
+        if parameters is None:
+            parameters = self.parameters
+        return ((effect - self.control_response) * parameters[0] ** parameters[1] / \
+                (parameters[2] - effect + self.control_response)) ** (1 / parameters[1])
 
     def get_multiple_responses(self,
                                doses: np.array,

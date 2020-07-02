@@ -5,6 +5,7 @@ import scipy as sp
 from SynRaptor import drug
 from scipy.integrate import odeint
 from scipy.optimize import minimize
+import math
 import matplotlib.pyplot as plt
 
 
@@ -28,15 +29,75 @@ class Combination:
         if not self._check_drug_consistency:
             raise RuntimeError
 
-        #self._set_sigma() TODO
+        self._set_sigma2()
+
 
     def get_loewe_response(self,
                            dose_combination: np.array,
-                           gradient: bool):
+                           gradient: bool,
+                           parameters: np.array = None):
         """
         Compute the Loewe response
         """
-        raise NotImplementedError
+        l = len(dose_combination)
+        if parameters is None:
+            parameters = [self.drug_list[i].parameters for i in range(l)]
+
+        def F(effect):
+            s = sum(dose_combination[i] / self.drug_list[i].inverse_evaluate(effect, parameters[i]) for i in range(l))
+            return s - 1
+
+        effect = sp.optimize.bisect(F, 1e-8, 99)
+
+        if not gradient:
+            return effect
+
+        def div1y(effect,
+                 i: int, #number of drug in drug_list
+                 parameter):
+            y = effect
+            w = self.drug_list[i].control_response
+            a = parameter[0]
+            n = parameter[1]
+            s = parameter[2]
+            return - s * a **n*(a**n*(y-w)/(s+w-y))**(-1/(n-1))/(n*(s+w-y)**2)
+
+
+        divFy = sum(dose_combination[i] * div1y(effect,i,parameters[i]) for i in range(l))
+
+        def divYa(effect,
+                  i: int):
+            y = effect
+            w = self.drug_list[i].control_response
+            a = parameters[i][0]
+            n = parameters[i][1]
+            s = parameters[i][2]
+            return dose_combination[i]*(a**n*(y-w)/(s+w-y))**(-1/n)/a / divFy
+
+
+        def divYn(effect,
+                  i: int):
+            y = effect
+            w = self.drug_list[i].control_response
+            a = parameters[i][0]
+            n = parameters[i][1]
+            s = parameters[i][2]
+            return dose_combination[i] * ((y-w)/(s+w-y))**(-1/n)*math.log((y-w)/(s+w-y))/(a*n**2) / divFy
+
+
+        def divYs(effect,
+                  i: int):
+            y = effect
+            w = self.drug_list[i].control_response
+            a = parameters[i][0]
+            n = parameters[i][1]
+            s = parameters[i][2]
+            return dose_combination[i] *(a**n*(y-w)/(s+w-y))**(-1/n)/(n*(s+w-y)) / divFy
+
+
+        grad = [np.array([divYa(effect,i),divYn(effect,i),divYs(effect,i)]) for i in range(l)]
+
+        return effect, self.matrix_to_vector(grad)
 
 
     def get_bliss_response(self,
@@ -57,6 +118,10 @@ class Combination:
 
             gradient: bool
                 determines wether gradient should be returned as well
+
+            parameters: np.array = None
+                parameters of drugs (if None parameters of self.drug_list are used)
+
 
             Returns
             -------
@@ -157,6 +222,25 @@ class Combination:
     def evaluate_log_likelihood(self,
                                 parameters: np.array,#2dim matrix
                                 gradient: bool):
+        """
+        Evaluates -2 * log likelihood of data.
+
+        Parameters
+        ----------
+        parameters: np.array
+            parameters of drugs
+
+        gradient: bool
+            determines wether gradient should be returned as well
+
+        Returns
+        -------
+        loglikelihood: float
+
+        grad: np.array
+            gradient of loglikelihood
+
+        """
         if not gradient:
             return np.sum([self.drug_list[i].evaluate_lsq_residual(self.drug_list[i].parameters, False) \
                            for i in range(len(self.drug_list))])
@@ -170,7 +254,7 @@ class Combination:
                 sum += lsq
                 grad = np.append(grad, gradi)
 
-            return sum, grad #TODO sum/sigma2
+            return sum / self.sigma2, grad
 
 
     def evaluate_validation_residual(self,
@@ -193,6 +277,12 @@ class Combination:
         gradient: bool
             determines wether gradient should be returned as well
 
+        parameters: np.array = None
+            parameters for drugs
+
+        null_model: str
+            null_model that is used
+
         Returns
         -------
         residual: float
@@ -208,17 +298,20 @@ class Combination:
             if null_model == 'hsa':
                 get_combination_response = self.get_hsa_response
             else:
-                ValueError()
+                if null_model == 'loewe':
+                    get_combination_response = self.get_loewe_response
+                else:
+                    ValueError()
 
 
         if parameters is None:
             parameters = [self.drug_list[i].parameters for i in range(len(drug_list))]
 
-        sigma2 = 1 #TODO use get_sigma
+
         if not gradient:
-            return ((validation_response - get_combination_response(validation_dose, False, parameters)) / sigma2) ** 2
+            return ((validation_response - get_combination_response(validation_dose, False, parameters)) / self.sigma2) ** 2
         (response, grad) = get_combination_response(validation_dose, True, parameters)
-        residual = ((validation_response - response) / sigma2) ** 2
+        residual = ((validation_response - response) / self.sigma2) ** 2
         grad = 2 * grad * (response - validation_response)
         return residual, grad
 
@@ -238,6 +331,9 @@ class Combination:
 
         validation_dose: np.array
             dose_combination for validation experiment
+
+        null_model: str
+            null model that is used
 
         Returns
         -------
@@ -500,8 +596,8 @@ class Combination:
         sum = 0
         for i in range(l):
             sum += self.drug_list[i].get_sigma2()
-
-        return sum / l
+        self.sigma2 = sum / l
+        return
 
 
 
@@ -545,6 +641,7 @@ doses = np.array([dose1,dose2, dose3])
 
 
 responses = np.array([0.6,0.8, 0.7])
+#print('inverse', A.inverse_evaluate(0.6))
 
 #print('Comb.newbliss:',Comb.newbliss(dosez,True))
 #res = Comb.get_hsa_response(dose, True)
@@ -558,9 +655,9 @@ responses = np.array([0.6,0.8, 0.7])
 #print(res3)
 
 
-c = Comb.fit_to_full_data(0.7, dosez, 'hsa')
+#c = Comb.fit_to_full_data(0.7, dosez, 'loewe')
 
-print(c)
+#print(c)
 
 #p = Comb.drug_list_to_parameters()
 #print(p)
@@ -572,3 +669,5 @@ print(c)
 
 #print(Comb._set_sigma2())
 
+#print('sigma2:', Comb.sigma2)
+print(Comb.get_loewe_response(dose1, True))
