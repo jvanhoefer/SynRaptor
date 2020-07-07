@@ -7,6 +7,8 @@ from scipy.integrate import odeint
 from scipy.optimize import minimize
 import math
 import matplotlib.pyplot as plt
+import pandas as pd
+
 
 
 
@@ -37,8 +39,32 @@ class Combination:
                            gradient: bool,
                            parameters: np.array = None):
         """
-        Compute the Loewe response
+        Compute the Loewe response.
+
+        Uses implicit functions theorem to calculate the gradient if required.
+
+        Parameters
+        ----------
+        dose_combination: np.array
+                gives the doses for the drugs that will be combined
+
+        gradient: bool
+            determines wether gradient should be returned as well
+
+        parameters: np.array = None
+            parameters of drugs (if None parameters of self.drug_list are used)
+
+
+        Returns
+        -------
+        effect: float
+            the response of the combined drug
+
+        grad: np.array
+            the gradient
         """
+
+
         l = len(dose_combination)
         if parameters is None:
             parameters = [self.drug_list[i].parameters for i in range(l)]
@@ -47,51 +73,50 @@ class Combination:
             s = sum(dose_combination[i] / self.drug_list[i].inverse_evaluate(effect, parameters[i]) for i in range(l))
             return s - 1
 
-        effect = sp.optimize.bisect(F, 1e-8, 99)
+        effect = sp.optimize.bisect(F, 0, 9)
 
         if not gradient:
             return effect
 
-        def div1y(effect,
-                 i: int, #number of drug in drug_list
-                 parameter):
-            y = effect
-            w = self.drug_list[i].control_response
-            a = parameter[0]
-            n = parameter[1]
-            s = parameter[2]
+        def get_parameters(i: int):
+            return self.drug_list[i].control_response, parameters[i][0], parameters[i][1], parameters[i][2]
+
+
+        def div1y(y,
+                 i: int): #index of drug in drug_list
+            """
+            Calculates the derivative of 1/f_i^{-1}(y)
+            """
+            w,a,n,s = get_parameters(i)
             return - s * a **n*(a**n*(y-w)/(s+w-y))**(-1/(n-1))/(n*(s+w-y)**2)
 
 
-        divFy = sum(dose_combination[i] * div1y(effect,i,parameters[i]) for i in range(l))
+        divFy = sum(dose_combination[i] * div1y(effect,i) for i in range(l)) #calculates dF/dy
 
-        def divYa(effect,
+        def divYa(y,
                   i: int):
-            y = effect
-            w = self.drug_list[i].control_response
-            a = parameters[i][0]
-            n = parameters[i][1]
-            s = parameters[i][2]
+            """
+            Calculates dy/da_i
+            """
+            w, a, n, s = get_parameters(i)
             return dose_combination[i]*(a**n*(y-w)/(s+w-y))**(-1/n)/a / divFy
 
 
-        def divYn(effect,
+        def divYn(y,
                   i: int):
-            y = effect
-            w = self.drug_list[i].control_response
-            a = parameters[i][0]
-            n = parameters[i][1]
-            s = parameters[i][2]
-            return dose_combination[i] * ((y-w)/(s+w-y))**(-1/n)*math.log((y-w)/(s+w-y))/(a*n**2) / divFy
+            """
+            Calculates dy/dn_i
+            """
+            w,a,n,s = get_parameters(i)
+            return dose_combination[i] * ((y-w)/(s+w-y))**(-1/n)*math.log((y-w)/(s+w-y))/(a*n**2) / divFy #a,n,w,s,y are positive
 
 
-        def divYs(effect,
+        def divYs(y,
                   i: int):
-            y = effect
-            w = self.drug_list[i].control_response
-            a = parameters[i][0]
-            n = parameters[i][1]
-            s = parameters[i][2]
+            """
+            Calculates dy/ds_i
+            """
+            w,a,n,s = get_parameters(i)
             return dose_combination[i] *(a**n*(y-w)/(s+w-y))**(-1/n)/(n*(s+w-y)) / divFy
 
 
@@ -436,30 +461,33 @@ class Combination:
     def get_hand_response(self,
                           dose_combination: np.array,
                           gradient: bool):
-            """
+        """
 
-            Compute the hand response
-            """
+        Compute the hand response
+        """
 
 
-            def f(y, t,
-                  dose_combination: np.array,
-                  ):
-                l = len(self.drug_list)
-                s = sum(dose_combination)
-                r = 0
-                for i in range(l):
-                    dev = self.drug_list[i].get_derivative(self.drug_list[i].inverse_evaluate(y))
-                    r += (dose_combination[i] / s) * dev
-                return r
-            # initial condition
-            y0 = [1e-7, 1e-7]
-            # timepoints
-            t = np.linspace(1e-7,1)
-            # solve ode
-            y = odeint(f,y0,t, args = (dose_combination,))
+        def f(y, t,
+                dose_combination: np.array,
+              ):
+            l = len(self.drug_list)
+            s = sum(dose_combination)
+            r = 0
+            for i in range(l):
+                dev = self.drug_list[i].get_derivative(self.drug_list[i].inverse_evaluate(y))
+                r += (dose_combination[i] / s) * dev
+            return r
+        # initial condition
+        y0 = [1e-7, 1e-7]
+        # timepoints
+        t = np.linspace(1e-7,1)
+        # solve ode
+        y = odeint(f,y0,t, args = (dose_combination,))
+        if not gradient:
             # wir wollen y[-1] also das letzte element im array
-            return y[-1]
+            return y
+
+
 
 
     def get_hsa_response(self,
@@ -670,4 +698,9 @@ responses = np.array([0.6,0.8, 0.7])
 #print(Comb._set_sigma2())
 
 #print('sigma2:', Comb.sigma2)
-print(Comb.get_loewe_response(dose1, True))
+#print(Comb.get_loewe_response(dose1, False))
+#print(Comb.get_hand_response(dose1, False))
+
+
+#df = pd.read_excel("single_agent_response.xlsx")
+#print(df)
