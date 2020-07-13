@@ -631,7 +631,7 @@ class Combination:
 
 
 #This code may be used for testing.
-print('hallo')
+#print('hallo')
 x = np.array([1,2,3,4,5])
 y = np.array([2,4,6,6,7])
 z = np.array([1,2,4,5,7])
@@ -702,5 +702,3 @@ responses = np.array([0.6,0.8, 0.7])
 #print(Comb.get_hand_response(dose1, False))
 
 
-#df = pd.read_excel("single_agent_response.xlsx")
-#print(df)
