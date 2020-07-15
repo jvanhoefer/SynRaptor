@@ -466,26 +466,53 @@ class Combination:
         Compute the hand response
         """
 
+        s = sum(dose_combination)
 
         def f(y, t,
                 dose_combination: np.array,
               ):
             l = len(self.drug_list)
-            s = sum(dose_combination)
+
             r = 0
             for i in range(l):
                 dev = self.drug_list[i].get_derivative(self.drug_list[i].inverse_evaluate(y))
                 r += (dose_combination[i] / s) * dev
             return r
         # initial condition
-        y0 = [1e-7, 1e-7]
+        y0 = 1e-7
         # timepoints
-        t = np.linspace(1e-7,1)
+        t = np.array([0,s])
         # solve ode
         y = odeint(f,y0,t, args = (dose_combination,))
         if not gradient:
             # wir wollen y[-1] also das letzte element im array
-            return y
+            return y[-1]
+        """
+        gradient using finite differences
+        """
+        def fv(y, t,
+                dose_combination: np.array,
+               i :int,
+              v: np.array,
+              ):
+
+            p = np.array([self.drug_list[i].parameters[0]+v[0],self.drug_list[i].parameters[1]+v[1],\
+                          self.drug_list[i].parameters[2]+v[2]])
+            dev = self.drug_list[i].get_derivative(self.drug_list[i].inverse_evaluate(y,p),p)
+
+            return (dose_combination[i] / s) * dev
+
+        grad = np.array([])
+        for i in range(len(self.drug_list)):
+            for j in range(3):
+                v = np.array([0,0,0])
+                v[j] = v[j] + 1
+
+                y1 = odeint(fv, y0, t, args=(dose_combination,i,v))
+                y2 = odeint(fv,y0,t, args = (dose_combination,i,-v))
+                grad = np.append(grad, (y1[-1]-y2[-1])/2)
+                print(y1[-1],y2[-1])
+        return y[-1], grad
 
 
 
@@ -654,14 +681,14 @@ D = drug.Drug(y, 0.0001 * y, True, 0)
 D.fit_parameters(10)
 
 
-A.parameters[2] = 0.4
-B.parameters[2] = 0.3
-C.parameters[2] = 0.7
-D.parameters[2] = 0.2
+A.parameters = np.array([3,2,0.8])
+B.parameters= np.array([7,1,0.8])
+C.parameters= np.array([3,1.5,0.4])
+D.parameters= np.array([4,2,1])
 
-drug_list = [A,B,C,D]
+drug_list = [A,B]
 Comb = Combination(drug_list)
-dose1 = np.array([0.5,0.5,0.5,0.8])
+dose1 = np.array([3,7])
 dose2 = np.array([0.6,0.5,0.5,0.2])
 dose3 = np.array([0.5,0.3,0.5,0.1])
 dosez = np.array([0.5,0.5,0.4,0.6])
@@ -698,7 +725,7 @@ responses = np.array([0.6,0.8, 0.7])
 #print(Comb._set_sigma2())
 
 #print('sigma2:', Comb.sigma2)
-#print(Comb.get_loewe_response(dose1, False))
-#print(Comb.get_hand_response(dose1, False))
+print('Loewe:',Comb.get_loewe_response(dose1, True))
+print('Hand:', Comb.get_hand_response(dose1, True))
 
 
