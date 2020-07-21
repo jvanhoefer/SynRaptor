@@ -81,6 +81,7 @@ class Drug:
 
         if dose_data is not None and response_data is not None:
             self._set_dose_and_response(dose_data, response_data)
+            self._set_monotony()
 
     def get_response(self,
                      dose: float,
@@ -337,3 +338,20 @@ class Drug:
             self.response_data = response_data
         else:
             raise RuntimeError
+
+
+    def _set_monotony(self):
+        """
+        sets monotone_increasing flag of drug
+        """
+        max = np.argmax(self.response_data)
+        min = np.argmin(self.response_data)
+
+        if self.response_data[min] < self.response_data[max]:
+            self.monotone_increasing = True
+        else:
+            self.monotone_increasing = False
+
+        return
+
+
