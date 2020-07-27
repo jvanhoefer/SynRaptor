@@ -68,8 +68,8 @@ class Drug:
     def __init__(self,
                  dose_data: np.array = None,
                  response_data: np.array = None,
-                 monotone_increasing: bool = True,
-                 control_response: float = 0):
+                 monotone_increasing: bool = False,
+                 control_response: float = 1):
         """
         Constructor
         """
@@ -81,7 +81,7 @@ class Drug:
 
         if dose_data is not None and response_data is not None:
             self._set_dose_and_response(dose_data, response_data)
-            self._set_monotony()
+            # self._set_monotony()
 
     def get_response(self,
                      dose: float,
@@ -125,6 +125,8 @@ class Drug:
             response_value: float = control_response - s * dose ** n / (a ** n + dose ** n)
         if not gradient:
             return response_value
+        if dose == 0:
+            return response_value, np.array([0.001, 0.001, 0.001])
         grad = np.array([np.nan, np.nan, np.nan])
         grad[0] = -s * dose ** n * a ** (n - 1) * n / ((a ** n + dose ** n) ** 2)
         grad[1] = a ** n * s * dose ** n * math.log(dose / a) / ((a ** n + dose ** n) ** 2)
@@ -135,7 +137,7 @@ class Drug:
 
     def get_derivative(self,
                        x: float,
-                       parameters = None):
+                       parameters=None):
         if parameters is None:
             parameters = self.parameters
         monotone_increasing = self.monotone_increasing
@@ -143,9 +145,9 @@ class Drug:
         n = parameters[1]
         s = parameters[2]
         if monotone_increasing:
-            derivative: float = n * s * a**n * x**(n-1) / (a**n + x**n)**2
+            derivative: float = n * s * a ** n * x ** (n - 1) / (a ** n + x ** n) ** 2
         else:
-            derivative: float = - n * s * a**n * x**(n-1) / (a**n + x**n)**2
+            derivative: float = - n * s * a ** n * x ** (n - 1) / (a ** n + x ** n) ** 2
         return derivative
 
     def inverse_evaluate(self,
@@ -153,8 +155,41 @@ class Drug:
                          parameters: np.array = None):
         if parameters is None:
             parameters = self.parameters
-        return ((effect - self.control_response) * parameters[0] ** parameters[1] / \
-                (parameters[2] - effect + self.control_response)) ** (1 / parameters[1])
+
+        # for increasing
+        if self.monotone_increasing:
+            if effect < self.control_response:
+                return float('-inf')
+            elif effect > self.control_response + parameters[2]:
+                return float('inf')
+
+            return ((effect - self.control_response) * parameters[0] ** parameters[1] /
+                    (parameters[2] - effect + self.control_response)) ** (1 / parameters[1])
+        # for decreasing
+        else:
+            if effect > self.control_response:
+                return float('-inf')
+            elif effect < self.control_response - parameters[2]:
+                return float('inf')
+            """
+            if (effect + self.control_response) * parameters[0] ** parameters[1] / \
+                    (parameters[2] - effect - self.control_response) < 0:
+                print('can not calculate fractional power of negative float in inverse evaluate')
+                return 0
+            """
+            return -((effect + self.control_response) * parameters[0] ** parameters[1] /
+                     (parameters[2] - effect - self.control_response)) ** (1 / parameters[1])
+
+    # TODO def sensitivity sensitivity = 0 wenn ich effect habe den drug nicht produzieren kann
+    def sensitivity(self,
+                    effect: float,
+                    parameters: np.array = None):
+        if parameters is None:
+            parameters = self.parameters
+
+        drug_sensivity = self.get_derivative(self.inverse_evaluate(effect, parameters),
+                                             parameters)
+        raise NotImplementedError
 
     def get_multiple_responses(self,
                                doses: np.array,
@@ -306,7 +341,6 @@ class Drug:
                                  bounds[2][0] + (bounds[2][1] - bounds[2][0]) / n_starts * (perm_s[i] + 0.5)]
         return initial_values
 
-
     def get_sigma2(self):
         sum = 0
         a = self.parameters[0]
@@ -316,12 +350,9 @@ class Drug:
         y = self.response_data
         d = len(x)
         for i in range(d):
-            sum += (s * x[i] **n / (a**n+x[i]**n)-y[i])**2
+            sum += (s * x[i] ** n / (a ** n + x[i] ** n) - y[i]) ** 2
 
         return sum / d
-
-
-
 
     def _set_dose_and_response(self,
                                dose_data: np.array,
@@ -339,7 +370,6 @@ class Drug:
         else:
             raise RuntimeError
 
-
     def _set_monotony(self):
         """
         sets monotone_increasing flag of drug
@@ -353,5 +383,3 @@ class Drug:
             self.monotone_increasing = False
 
         return
-
-

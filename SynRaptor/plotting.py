@@ -27,7 +27,7 @@ def plot_responses(drug: drug):
     plt.figure('plot_responses')
     #drug.dose_data.sort()
     #drug.response_data.sort()# np.argsort
-    plt.plot(drug.dose_data, drug.response_data, linestyle='None', marker='.')
+    plt.semilogx(drug.dose_data, drug.response_data, linestyle='None', marker='.')
 
     #design
     plt.title('dose response curve')
@@ -35,7 +35,7 @@ def plot_responses(drug: drug):
     plt.ylabel('response')
     plt.show()
 
-def plot_parameters(drug: drug):
+def plot_parameters(drug: drug):#TODO monotone increasing
     """
     Plots a Hill curve according to the parameters of a Drug drug.
     If drug does not have parameters yet, the parameters will be determined via drug.fit_parameters() and stored in drug
@@ -47,7 +47,7 @@ def plot_parameters(drug: drug):
     n = drug.parameters[1]
     s = drug.parameters[2]
     x = np.linspace(0, 2*a, 100)  # 100 values from 0 to 2*a, as a is the Half-Max of Hill curve.
-    y = drug.control_response + s * x ** n / (a ** n + x ** n)
+    y = drug.control_response - s * x ** n / (a ** n + x ** n)
     plt.plot(x, y)
 
     # design
@@ -79,7 +79,7 @@ def plot_noise(drug: drug):
 
     # responses_plot
     noise_response(drug)
-    plt.plot(drug.dose_data, drug.response_data, linestyle='None', marker = '.', label = 'data')
+    plt.plot(drug.dose_data, drug.response_data, linestyle='None', marker='.', label='data')
 
     #new parameters plot
     D.fit_parameters(10)
@@ -88,7 +88,7 @@ def plot_noise(drug: drug):
     s = drug.parameters[2]
     x = np.linspace(0, 2 * a, 100)  # 100 values from 0 to 2*a, as a is the Half-Max of Hill curve.
     y = drug.control_response + s * x ** n / (a ** n + x ** n)
-    plt.plot(x, y, linestyle = '--', label='fitted hill curve')
+    plt.plot(x, y, linestyle='--', label='fitted hill curve')
 
     #design
     plt.title('Hill curves')
@@ -109,7 +109,7 @@ def noise_response(D: drug):
     D.response_data = y
 
 
-def plot_drug(D: drug):
+def plot_drug(D: drug, title: str = 'dose response curve'):#TODO monotone increasing
     """
     Plots the Hill curve according to parameters of Drug D and dose response data points of D.
     """
@@ -120,16 +120,16 @@ def plot_drug(D: drug):
         n = D.parameters[1]
         s = D.parameters[2]
         x = np.linspace(0, 2 * a, 100)  # 100 values from 0 to 2*a, as a is the Half-Max of Hill curve.
-        y = D.control_response + s * x ** n / (a ** n + x ** n)
+        y = D.control_response - s * x ** n / (a ** n + x ** n)
         plt.plot(x, y, label='parameters')
 
     #responses plot
-    D.dose_data.sort()
-    D.response_data.sort()#TODO numpy.argsort
+    #D.dose_data.sort()
+    #D.response_data.sort()#TODO numpy.argsort
     plt.plot(D.dose_data, D.response_data, linestyle='None', marker='.', label='responses')
 
     #design
-    plt.title('dose response curve')
+    plt.title(title)
     plt.xlabel('dose')
     plt.ylabel('response')
     plt.legend
