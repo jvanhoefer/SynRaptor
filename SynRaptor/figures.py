@@ -37,7 +37,7 @@ def get_figures(drug_a_name: str,
     return alpha
 
 
-#print(get_figures('5-FU', 'MK-8669', 'A2058'))
+# print(get_figures('5-FU', 'MK-8669', 'A2058'))
 
 
 def get_isobole(effect,
@@ -47,7 +47,6 @@ def get_isobole(effect,
     Calculates isobole for given model and effect.
 
     """
-
 
     if null_model == 'bliss':
         get_combination_response = comb.get_bliss_response
@@ -82,8 +81,6 @@ def get_isobole(effect,
     doses_b = np.append(doses_b, comb.drug_list[1].inverse_evaluate(effect))
 
     return doses_a, doses_b
-
-
 
 
 def get_validation_interval(effect,
@@ -128,10 +125,52 @@ def plot_validation_isoboles(effect: float,
     Creates image using get_isobole and get_validation_interval.
     """
     (isobole_x, isobole_y) = get_isobole(effect, null_model, comb)
+    print(isobole_x, isobole_y)
+    # plt.loglog(isobole_x, isobole_y, linestyle='None', marker='o', color='green', label='isobole')
     plt.plot(isobole_x, isobole_y, linestyle='None', marker='o', color='green', label='isobole')
-    (validation_x, validation_y) = get_validation_interval(effect, null_model, alpha, comb)
-    plt.plot(validation_x, validation_y, linestyle='None', marker='.', color='blue', label='validation')
+    # (validation_x, validation_y) = get_validation_interval(effect, null_model, alpha, comb)
+    # plt.plot(validation_x, validation_y, linestyle='None', marker='.', color='blue', label='validation')
     plt.title(null_model)
     plt.show()
 
 
+def surface_plot(comb: Combination,
+                 comb_doses_a,
+                 comb_doses_b,
+                 comb_responses,
+                 null_model: str = 'bliss'):
+    if null_model == 'bliss':
+        get_combination_response = comb.get_bliss_response
+    elif null_model == 'hsa':
+        get_combination_response = comb.get_hsa_response
+    elif null_model == 'loewe':
+        get_combination_response = comb.get_loewe_response
+    elif null_model == 'hand':
+        get_combination_response = comb.get_hand_response
+    else:
+        ValueError("invalid null model")
+
+    fig = plt.figure()
+
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_title(null_model)
+
+    x = np.arange(0, 10.3, 0.25)  # this is optimized for 5-FU
+    y = np.arange(0, 0.012, 0.0005)  # this is optimized for MK-8669
+    x, y = np.meshgrid(x, y)
+
+    predictions = np.array([[get_combination_response(np.array([x[j][i], y[j][i]]), False, None) for i in
+                             range(len(x[0]))] for j in range(len(x[:, 0]))])
+
+    ax.scatter(comb_doses_a, comb_doses_b, comb_responses, color='blue', marker='o')
+    # here it is possible to plot the single drug data as well
+    # ax.scatter(drug_a_doses, np.zeros(len(drug_a_doses)), drug_a_responses, color='green', marker='o')
+    # ax.scatter(np.zeros(len(drug_b_doses)), drug_b_doses, drug_b_responses, color='r', marker='o')
+
+    ax.set_xlabel('dose_a')
+    ax.set_ylabel('dose_b')
+    ax.set_zlabel('response')
+
+    ax.plot_surface(x, y, predictions, color='blue', alpha=0.5)
+
+    plt.show()

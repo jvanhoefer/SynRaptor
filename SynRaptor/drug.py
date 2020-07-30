@@ -177,19 +177,21 @@ class Drug:
                 print('can not calculate fractional power of negative float in inverse evaluate')
                 return 0
             """
-            return -((effect + self.control_response) * parameters[0] ** parameters[1] /
-                     (parameters[2] - effect - self.control_response)) ** (1 / parameters[1])
+            return ((self.control_response - effect) /
+                    (parameters[2] + effect - self.control_response)) ** (1 / parameters[1]) * parameters[0]
 
-    # TODO def sensitivity sensitivity = 0 wenn ich effect habe den drug nicht produzieren kann
     def sensitivity(self,
                     effect: float,
                     parameters: np.array = None):
         if parameters is None:
             parameters = self.parameters
 
-        drug_sensivity = self.get_derivative(self.inverse_evaluate(effect, parameters),
-                                             parameters)
-        raise NotImplementedError
+        if effect > self.control_response:
+            return 0
+        elif effect < self.control_response - parameters[2]:
+            return 0
+
+        return self.get_derivative(self.inverse_evaluate(effect, parameters), parameters)
 
     def get_multiple_responses(self,
                                doses: np.array,
@@ -281,13 +283,13 @@ class Drug:
         """ fits parameters to data and stores new parameters in drug
 
         Uses minimize (scipy) to minimize evaluate_lsq_residual using its gradient as well. Iterates over n_starts by
-        _get_optimization_starts sampled initialValues and returns and stores the parameters of the minimal result.
+        _get_optimization_starts sampled initial_values and returns and stores the parameters of the minimal result.
 
         Parameters
         ----------
 
         n_starts: int
-            number of initialValues for minimization
+            number of initial_values for minimization
 
         Returns
         -------
@@ -299,14 +301,15 @@ class Drug:
         def lsq(parameters):
             return self.evaluate_lsq_residual(parameters, True)
 
-        b = (1e-8, 9)
-        bounds = (b, b, b)
-        initialValues = self._get_optimizations_starts(bounds, n_starts)
+        bounds = ((np.min(self.dose_data), np.max(self.dose_data)),
+                  (1, 20),
+                  (1e-6, 1))
+        initial_values = self._get_optimizations_starts(bounds, n_starts)
 
         minimum_value = float('inf')
         minimum_parameters = None
         for i in range(n_starts):
-            solution = minimize(lsq, initialValues[i], method='TNC', jac=True, bounds=bounds)
+            solution = minimize(lsq, initial_values[i], method='TNC', jac=True, bounds=bounds)
             if solution.fun < minimum_value:
                 minimum_value = solution.fun
                 minimum_parameters = solution.x

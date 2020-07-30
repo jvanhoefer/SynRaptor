@@ -71,17 +71,25 @@ class Combination:
         if parameters is None:
             parameters = [drug.parameters for drug in self.drug_list]
 
-        def loewe_equation(effect):
-            if effect == 0:
-                RuntimeWarning('evaluate loewe effect = 0')
 
-            s = sum(dose_combination[i] / self.drug_list[i].inverse_evaluate(effect, parameters[i]) for i in
-                    range(number_of_drugs))
-            return s - 1
+        if not np.any(dose_combination):
+            if self.drug_list[0].monotone_increasing:
+                effect = 0
+            else:
+                effect = 1
+        else:
 
-        # TODO adapt starting point
-        effect = sp.optimize.bisect(loewe_equation, self.drug_list[0].control_response + 1e-4,
-                                    self.drug_list[0].parameters[2])
+            def loewe_equation(effect):
+                if effect == 0:
+                    RuntimeWarning('evaluate loewe effect = 0')
+
+                s = sum(dose_combination[i] / self.drug_list[i].inverse_evaluate(effect, parameters[i]) for i in
+                        range(number_of_drugs))
+                return s - 1
+
+            # TODO adapt starting point
+            effect = sp.optimize.bisect(loewe_equation, self.drug_list[0].control_response - 1e-4,
+                                        self.drug_list[0].parameters[2])
 
         if not gradient:
             return effect
@@ -266,10 +274,8 @@ class Combination:
 
             r = 0
             for i in range(number_of_drugs):
-                # TODO sensitivity funktion aus drug class benutzen
-                drug_sensivity = self.drug_list[i].get_derivative(self.drug_list[i].inverse_evaluate(y, parameters[i]),
-                                                                  parameters[i])
-                r += (dose_combination[i] / s) * drug_sensivity
+                drug_sensitivity = self.drug_list[i].sensitivity(y, parameters[i])
+                r += (dose_combination[i] / s) * drug_sensitivity
             return r
 
         # initial condition
@@ -282,22 +288,23 @@ class Combination:
         # solve ode
         sol = odeint(f, y0, t, args=(dose_combination,))
         if not gradient:
-            return sol[-1]  # returns last element in array
+            return sol[-1][0]  # returns last element in array
         """
         gradient using finite differences
         """
 
-        def fv(effect, t,
+        def fv(effect,
+               t,
                dose_combination: np.array,
                i: int,
-               v: np.array,
-               ):
+               v: np.array):
+
             """
             ith summand of right hand side of hand ODE with changed parameters for finite differences
             """
 
             p = np.array([parameters[i][0] + v[0], parameters[i][1] + v[1], parameters[i][2] + v[2]])
-            drug_sensivity = self.drug_list[i].get_derivative(self.drug_list[i].inverse_evaluate(effect, p), p)
+            drug_sensivity = self.drug_list[i].sensitivity(effect, p)
 
             return (dose_combination[i] / s) * drug_sensivity
 
@@ -310,7 +317,8 @@ class Combination:
                 y1 = odeint(fv, y0, t, args=(dose_combination, i, v))
                 y2 = odeint(fv, y0, t, args=(dose_combination, i, -v))
                 grad = np.append(grad, (y1[-1] - y2[-1]) / 0.2)
-        return sol[-1], grad
+
+        return sol[-1][0], grad
 
     def get_hsa_response(self,
                          dose_combination: np.array,
@@ -640,7 +648,7 @@ class Combination:
         return
 
 
-"""
+
 
 # This code may be used for testing.
 # print('hallo')
@@ -681,4 +689,4 @@ responses = np.array([0.1, 0.7])
 #print('HSA:', Comb.get_significance(doses, responses, 'hsa'))
 #print('Loewe:', Comb.get_significance(doses, responses, 'loewe'))
 
-"""
+
