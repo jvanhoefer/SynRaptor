@@ -54,7 +54,7 @@ for bisection to work one has to be careful with choosing values for the effect 
 
 #here the null model predictions are plotted
 
-figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'bliss')
-figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hsa')
-figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'loewe')
-figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hand')
+#figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'bliss')
+#figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hsa')
+#figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'loewe')
+#figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hand')

@@ -98,7 +98,7 @@ comb_responses = np.array([0.93339, 0.94425, 1.04891, 0.87357, 0.85792, 0.8815, 
                            0.42699, 0.3056, 0.34517, 0.39684, 0.36953, 0.3684, 0.39696,
                            0.36154])
 
-#"""
+"""
 fig = plt.figure(figsize=[6.4, 10])
 ax = fig.add_subplot(121, projection='3d', azim=-60, elev=30)
 
@@ -151,8 +151,9 @@ ax.plot_surface(a_dose, b_dose, mean, color='green', alpha=0.7)
 
 #plt.show()
 
-#"""
-ax = fig.add_subplot(122, projection='3d', azim=-60, elev=30)
+"""
+"""
+ax = fig.add_subplot(122)
 # significances plot
 # TODO write function in figures for all drugs and use it in figures_script
 a_labels = ['0.35', '1.08', '3.25', '10.0']
@@ -169,7 +170,7 @@ for i in range(16):
 
 significances = np.reshape(significances, (4, 4))
 
-fig, ax = plt.subplots()
+#fig, ax = plt.subplots()
 im = ax.imshow(np.log(significances))
 
 # We want to show all ticks...
@@ -198,4 +199,4 @@ ax.set_title("bliss significance levels")
 fig.tight_layout()
 plt.show()
 print('ende')
-#"""
+"""

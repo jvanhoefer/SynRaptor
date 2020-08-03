@@ -93,11 +93,11 @@ def get_validation_interval(effect,
     doses_a = np.array([])
     doses_b = np.array([])
 
-    ratio = [0, 1 / 9, 1 / 4, 3 / 7, 4 / 6, 1, 6 / 4, 7 / 3, 4, 9]
+    ratio = np.linspace(0,1,0.01)#[0, 1 / 9, 1 / 4, 3 / 7, 4 / 6, 1, 6 / 4, 7 / 3, 4, 9]
 
     for r in ratio:
         def significance_equation(c):
-            dose_combination = np.array([c, r * c])
+            dose_combination = np.array([(1-r)*c, r * c])
             return comb.get_significance(np.array(dose_combination), effect, null_model) - alpha
 
         dose_a = sp.optimize.bisect(significance_equation, 0, 10)

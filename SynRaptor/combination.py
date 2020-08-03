@@ -11,7 +11,6 @@ import math
 import numpy.matlib
 
 
-
 class Combination:
     """
     Combination stores a list of drugs and gives all functionality
@@ -70,7 +69,6 @@ class Combination:
 
         if parameters is None:
             parameters = [drug.parameters for drug in self.drug_list]
-
 
         if not np.any(dose_combination):
             if self.drug_list[0].monotone_increasing:
@@ -460,7 +458,7 @@ class Combination:
         if type(validation_responses) == float:
             if not gradient:
                 return ((validation_responses -
-                             get_combination_response(validation_doses, False, parameters)) / self.sigma2) ** 2
+                         get_combination_response(validation_doses, False, parameters)) / self.sigma2) ** 2
 
             else:
                 (response, grad_prep) = get_combination_response(validation_doses, True, parameters)
@@ -471,10 +469,9 @@ class Combination:
         else:
             number_of_responses = len(validation_responses)
 
-
         if not gradient:
             return np.sum([((validation_responses[i] -
-                             get_combination_response(validation_doses[:, i], False, parameters)) / self.sigma2) ** 2
+                             get_combination_response(validation_doses[:,i], False, parameters)) / self.sigma2) ** 2
                            for i in range(number_of_responses)])
 
         residual = 0
@@ -526,7 +523,7 @@ class Combination:
 
     def fit_to_old_data(self):
         """
-        Fits drug parameters to data including validation experiment.
+        Fits drug parameters to data excluding validation experiment.
 
         Parameters
         ----------
@@ -648,8 +645,6 @@ class Combination:
         return
 
 
-
-
 # This code may be used for testing.
 # print('hallo')
 x = np.array([1, 2, 3, 4, 5])
@@ -684,9 +679,7 @@ doses_b = np.array([4, 5])
 doses = np.array([doses_a, doses_b])
 responses = np.array([0.1, 0.7])
 
-#print('Hand:', Comb.get_significance(doses, responses, 'hand'))
-#print('Bliss:', Comb.get_significance(doses, responses, 'bliss'))
-#print('HSA:', Comb.get_significance(doses, responses, 'hsa'))
-#print('Loewe:', Comb.get_significance(doses, responses, 'loewe'))
-
-
+# print('Hand:', Comb.get_significance(doses, responses, 'hand'))
+# print('Bliss:', Comb.get_significance(doses, responses, 'bliss'))
+# print('HSA:', Comb.get_significance(doses, responses, 'hsa'))
+# print('Loewe:', Comb.get_significance(doses, responses, 'loewe'))
