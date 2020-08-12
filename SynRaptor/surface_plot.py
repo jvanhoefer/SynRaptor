@@ -98,9 +98,12 @@ comb_responses = np.array([0.93339, 0.94425, 1.04891, 0.87357, 0.85792, 0.8815, 
                            0.42699, 0.3056, 0.34517, 0.39684, 0.36953, 0.3684, 0.39696,
                            0.36154])
 
-"""
+
 fig = plt.figure(figsize=[6.4, 10])
-ax = fig.add_subplot(121, projection='3d', azim=-60, elev=30)
+ax = fig.add_subplot(121, projection='3d', azim=-49, elev=11)
+
+#fig = plt.figure()
+#ax = fig.add_subplot(111, projection='3d', azim=-49, elev=11)
 
 x = np.arange(0, 10.3, 0.25)
 y = np.arange(0, 0.012, 0.0005)
@@ -115,7 +118,7 @@ bliss_predictions = np.array([[comb.get_bliss_response(np.array([x[j][i], y[j][i
 #loewe_predictions = np.array([[comb.get_loewe_response(np.array([x[j][i], y[j][i]]), False, None) for i in
 #                               range(len(x[0]))] for j in range(len(x[:, 0]))])
 
-ax.scatter(comb_doses_a, comb_doses_b, comb_responses, color='blue', marker='o')
+ax.scatter(comb_doses_a, comb_doses_b, comb_responses, color='green', marker='o')
 #ax.scatter(drug_a_doses, np.zeros(len(drug_a_doses)), drug_a_responses, color='green', marker='o')
 #ax.scatter(np.zeros(len(drug_b_doses)), drug_b_doses, drug_b_responses, color='r', marker='o')
 
@@ -125,7 +128,7 @@ ax.set_ylabel('MK-8669 (µM)')
 ax.set_zlabel('viability')
 
 
-ax.plot_surface(x, y, bliss_predictions, color='blue', alpha=0.3)
+ax.plot_surface(x, y, bliss_predictions, color='blue', alpha=0.5)
 #ax.plot_surface(x, y, hand_predictions, color='green', alpha=0.3)
 #ax.plot_surface(x, y, hsa_predictions, color='r', alpha=0.5)
 #ax.plot_surface(x, y, loewe_predictions, color='yellow', alpha=0.8)
@@ -146,13 +149,13 @@ b_dose = b_dose.reshape((4,4))
 mean = mean.reshape((4,4))
 
 
-ax.plot_surface(a_dose, b_dose, mean, color='green', alpha=0.7)
-
+ax.plot_surface(a_dose, b_dose, mean, color='red', alpha=0.5)
+ax.set_title("bliss prediction and responses")
 
 #plt.show()
 
-"""
-"""
+
+
 ax = fig.add_subplot(122)
 # significances plot
 # TODO write function in figures for all drugs and use it in figures_script
@@ -199,4 +202,4 @@ ax.set_title("bliss significance levels")
 fig.tight_layout()
 plt.show()
 print('ende')
-"""
+

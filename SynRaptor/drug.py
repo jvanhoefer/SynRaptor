@@ -116,6 +116,7 @@ class Drug:
             parameters = self.parameters
         monotone_increasing = self.monotone_increasing
         control_response = self.control_response
+
         a = parameters[0]
         n = parameters[1]
         s = parameters[2]
