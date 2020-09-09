@@ -1,8 +1,7 @@
 """ Single Drugs are defined here.
 """
-import numpy as np
-import scipy as sp
 import math
+import numpy as np
 from scipy.optimize import minimize
 
 
@@ -48,6 +47,15 @@ class Drug:
     get_response:
         calculates response for given parameters and single dose and returns gradient if requested
 
+    get_derivative:
+        calculates the derivative of the hill curve
+
+    inverse_evaluate:
+        calculates the inverse of the hill curve
+
+    sensitivity:
+        calculates the sensitivity of a drug
+
     get_multiple_responses:
         calculates responses for given parameters and multiple doses and returns gradients if requested
 
@@ -60,8 +68,14 @@ class Drug:
     _get_optimizations_starts:
         samples initial values in the bounds via Latin Hypercube sampling
 
+    get_sigma2:
+        calculates the optimal sigma^2 through hierarchical optimization
+
     _set_dose_and_response:
         sets dose and response data. Checks dimensions
+
+    _set_monotony:
+        sets the monotone increasing flag of drug
 
     """
 
@@ -137,8 +151,28 @@ class Drug:
         return response_value, grad
 
     def get_derivative(self,
-                       x: float,
+                       dose: float,
                        parameters=None):
+        """
+        Calculates the derivative of the hill curve.
+
+        differentiates between monotone increasing and decreasing drugs.
+
+        Parameters
+        ----------
+        dose: float
+            the drug dose given
+
+        parameters: np.array
+            parameters of hill curve
+
+        Returns
+        -------
+        derivative: float
+            the derivative of the hill curve at dose dose
+
+
+        """
         if parameters is None:
             parameters = self.parameters
         monotone_increasing = self.monotone_increasing
@@ -146,14 +180,33 @@ class Drug:
         n = parameters[1]
         s = parameters[2]
         if monotone_increasing:
-            derivative: float = n * s * a ** n * x ** (n - 1) / (a ** n + x ** n) ** 2
+            derivative: float = n * s * a ** n * dose ** (n - 1) / (a ** n + dose ** n) ** 2
         else:
-            derivative: float = - n * s * a ** n * x ** (n - 1) / (a ** n + x ** n) ** 2
+            derivative: float = - n * s * a ** n * dose ** (n - 1) / (a ** n + dose ** n) ** 2
         return derivative
 
     def inverse_evaluate(self,
                          effect: float,
                          parameters: np.array = None):
+        """
+        Calculates the inverse of the hill curve.
+
+        differentiates between monotone increasing and decreasing drugs.
+
+        Parameters
+        ----------
+        effect: float
+            the effect of the drug
+
+        parameters: np.array
+            parameters of hill curve
+
+        Returns
+        -------
+        dose: float
+            the dose that causes the effect effect
+
+        """
         if parameters is None:
             parameters = self.parameters
 
@@ -172,18 +225,31 @@ class Drug:
                 return float('-inf')
             elif effect < self.control_response - parameters[2]:
                 return float('inf')
-            """
-            if (effect + self.control_response) * parameters[0] ** parameters[1] / \
-                    (parameters[2] - effect - self.control_response) < 0:
-                print('can not calculate fractional power of negative float in inverse evaluate')
-                return 0
-            """
+
             return ((self.control_response - effect) /
                     (parameters[2] + effect - self.control_response)) ** (1 / parameters[1]) * parameters[0]
 
     def sensitivity(self,
                     effect: float,
                     parameters: np.array = None):
+        """
+        Calculates the sensitivity of a drug at a certain effect.
+
+        The sensitivity is f'(f^-1(y)). It determines how sensitive a drug is to variations in dose at a certain effect.
+
+        Parameters
+        ----------
+        effect: float
+            the effect of the drug
+
+        parameters: np.array
+            the parameters of the hill curve
+
+        Returns
+        -------
+        sensitivity:
+            the sensitivity of the drug at effect effect
+        """
         if parameters is None:
             parameters = self.parameters
 
@@ -346,6 +412,16 @@ class Drug:
         return initial_values
 
     def get_sigma2(self):
+        """
+        Calculates the optimal sigma^2 through hierarchical optimization.
+
+        Uses only the data saved in the drug.
+
+        Returns
+        -------
+        sum / d: float
+            the optimal sigma^2
+        """
         sum = 0
         a = self.parameters[0]
         n = self.parameters[1]

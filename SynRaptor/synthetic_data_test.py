@@ -1,18 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from SynRaptor import drug
-from SynRaptor import plotting
-from SynRaptor import figures
-from SynRaptor import Combination
-# from SynRaptor import drug_comb_dict as dct
-import scipy as sp
-import pandas as pd
-# import dictionaries
-import math
-from scipy.stats import chi2
 from numpy import random
+from SynRaptor import Combination
+from SynRaptor import drug
 
-number_of_iterations = 100
+number_of_iterations = 1000
 null_model = 'bliss'
 data_hsa = np.zeros(number_of_iterations)
 significances = np.zeros(number_of_iterations)
@@ -44,15 +36,14 @@ for i in range(number_of_iterations):
     # create synthetic data, fit single drugs,
 
     synthetic_data = [get_combination_response(dose_combination, False, None) +
-                     np.random.normal(loc=0.0, scale=np.sqrt(comb.sigma2), size=None) for i in range(4)]
+                     np.random.normal(loc=0.0, scale=np.sqrt(comb.sigma2), size=None) for i in range(10000)]
 
     # calculate significance
 
-    significance = comb.sum_significance(dose_combination, synthetic_data, null_model)
+    significance = comb.get_significance(dose_combination, synthetic_data, null_model)
 
     # create result arrays
 
-    #data[i] = synthetic_data
     significances[i] = significance
 
 plt.hist(significances, bins=20)

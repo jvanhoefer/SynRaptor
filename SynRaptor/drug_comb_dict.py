@@ -5,10 +5,14 @@ from SynRaptor import plotting
 import pandas as pd
 import dictionaries
 import math
+import time
 from SynRaptor import Combination
 
 
 def drug_dict():
+    fitting_time = 0
+    counter = 0
+
     single_agents = pd.read_excel(
         "C:/Users/Carolin/PycharmProjects/GitHub/SynRaptor/SynRaptor/single_agent_response.xlsx")
     drug_names = single_agents['drug_name'].unique()
@@ -33,7 +37,19 @@ def drug_dict():
                         responses = np.append(responses, row[row_name])
                         doses = np.append(doses, row['Drug_concentration (µM)'])
 
-            drug_dict.update({(drug_names[i], cell_lines[j]): drug.Drug(doses, responses, False, 1)})
+            d = drug.Drug(doses, responses, False, 1)
+
+            start = time.time()
+            d.fit_parameters()
+            end = time.time()
+            fitting_time += end - start
+            counter += 1
+
+
+
+            drug_dict.update({(drug_names[i], cell_lines[j]): d})
+    print('The time needed to fit ', counter, ' drugs is ', fitting_time, ' seconds. This equals ', fitting_time / 60,
+          ' minutes')
     return drug_dict
 
 

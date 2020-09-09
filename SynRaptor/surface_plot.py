@@ -4,6 +4,7 @@ from SynRaptor import drug
 from SynRaptor import plotting
 from SynRaptor import figures
 from SynRaptor import Combination
+import time
 # from SynRaptor import drug_comb_dict as dct
 import scipy as sp
 # import pandas as pd
@@ -109,14 +110,33 @@ x = np.arange(0, 10.3, 0.25)
 y = np.arange(0, 0.012, 0.0005)
 x, y = np.meshgrid(x, y)
 
+bliss_start = time.time()
 bliss_predictions = np.array([[comb.get_bliss_response(np.array([x[j][i], y[j][i]]), False, None) for i in
+                             range(len(x[0]))] for j in range(len(x[:, 0]))])
+bliss_end = time.time()
+print('It takes', bliss_end-bliss_start, 'seconds to get the bliss predictions for cell line A2058 drugs 5-FU and '
+                                         'MK-8668 and 64 dose combination.')
+
+hand_start = time.time()
+hand_predictions = np.array([[comb.get_hand_response(np.array([x[j][i], y[j][i]]), False, None) for i in
                               range(len(x[0]))] for j in range(len(x[:, 0]))])
-#hand_predictions = np.array([[comb.get_hand_response(np.array([x[j][i], y[j][i]]), False, None) for i in
-#                              range(len(x[0]))] for j in range(len(x[:, 0]))])
-#hsa_predictions = np.array([[comb.get_hsa_response(np.array([x[j][i], y[j][i]]), False, None) for i in
-#                             range(len(x[0]))] for j in range(len(x[:, 0]))])
-#loewe_predictions = np.array([[comb.get_loewe_response(np.array([x[j][i], y[j][i]]), False, None) for i in
-#                               range(len(x[0]))] for j in range(len(x[:, 0]))])
+hand_end = time.time()
+print('It takes', hand_end-hand_start, 'seconds to get the hand predictions for cell line A2058 drugs 5-FU and '
+                                         'MK-8668 and 64 dose combination.')
+
+hsa_start = time.time()
+hsa_predictions = np.array([[comb.get_hsa_response(np.array([x[j][i], y[j][i]]), False, None) for i in
+                            range(len(x[0]))] for j in range(len(x[:, 0]))])
+hsa_end = time.time()
+print('It takes', hsa_end-hsa_start, 'seconds to get the hsa predictions for cell line A2058 drugs 5-FU and '
+                                         'MK-8668 and 64 dose combination.')
+
+loewe_start = time.time()
+loewe_predictions = np.array([[comb.get_loewe_response(np.array([x[j][i], y[j][i]]), False, None) for i in
+                               range(len(x[0]))] for j in range(len(x[:, 0]))])
+loewe_end = time.time()
+print('It takes', loewe_end-loewe_start, 'seconds to get the loewe predictions for cell line A2058 drugs 5-FU and '
+                                         'MK-8668 and 64 dose combination.')
 
 ax.scatter(comb_doses_a, comb_doses_b, comb_responses, color='green', marker='o')
 #ax.scatter(drug_a_doses, np.zeros(len(drug_a_doses)), drug_a_responses, color='green', marker='o')
@@ -164,14 +184,24 @@ b_labels = ['0.00011', '0.0005', '0.00223', '0.01']
 
 significances = np.zeros(16)
 
+sig_time = 0
+
 for i in range(16):
     a_dose = [comb_doses_a[4 * i + j] for j in range(4)]
     b_dose = [comb_doses_b[4 * i + j] for j in range(4)]
     responses = [comb_responses[4 * i + j] for j in range(4)]
-    significances[i] = comb.get_significance(np.array([a_dose, b_dose]), responses, 'bliss')
+
+    sig_start = time.time()
+    significances[i] = comb.get_significance(np.array([a_dose, b_dose]), responses, 'loewe')
+    sig_end = time.time()
+    sig_time += sig_end - sig_start
     # significances[i] = "{:.4f}".format(significance)
 
+print('It takes ', sig_time, ' seconds to calculate the 16 significances for the drug combination')
+#significance = comb.sum_significance(np.array([comb_doses_a, comb_doses_b]), comb_responses, 'loewe')
+#print(significance)
 significances = np.reshape(significances, (4, 4))
+#print(significances)
 
 #fig, ax = plt.subplots()
 im = ax.imshow(np.log(significances))
