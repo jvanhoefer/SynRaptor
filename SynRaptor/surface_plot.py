@@ -114,31 +114,31 @@ bliss_start = time.time()
 bliss_predictions = np.array([[comb.get_bliss_response(np.array([x[j][i], y[j][i]]), False, None) for i in
                              range(len(x[0]))] for j in range(len(x[:, 0]))])
 bliss_end = time.time()
-print('It takes', bliss_end-bliss_start, 'seconds to get the bliss predictions for cell line A2058 drugs 5-FU and '
-                                         'MK-8668 and 64 dose combination.')
+#print('It takes', bliss_end-bliss_start, 'seconds to get the bliss predictions for cell line A2058 drugs 5-FU and '
+#                                         'MK-8668 and 64 dose combination.')
 
 hand_start = time.time()
-hand_predictions = np.array([[comb.get_hand_response(np.array([x[j][i], y[j][i]]), False, None) for i in
-                              range(len(x[0]))] for j in range(len(x[:, 0]))])
+#hand_predictions = np.array([[comb.get_hand_response(np.array([x[j][i], y[j][i]]), False, None) for i in
+#                              range(len(x[0]))] for j in range(len(x[:, 0]))])
 hand_end = time.time()
-print('It takes', hand_end-hand_start, 'seconds to get the hand predictions for cell line A2058 drugs 5-FU and '
-                                         'MK-8668 and 64 dose combination.')
+#print('It takes', hand_end-hand_start, 'seconds to get the hand predictions for cell line A2058 drugs 5-FU and '
+#                                         'MK-8668 and 64 dose combination.')
 
 hsa_start = time.time()
 hsa_predictions = np.array([[comb.get_hsa_response(np.array([x[j][i], y[j][i]]), False, None) for i in
                             range(len(x[0]))] for j in range(len(x[:, 0]))])
 hsa_end = time.time()
-print('It takes', hsa_end-hsa_start, 'seconds to get the hsa predictions for cell line A2058 drugs 5-FU and '
-                                         'MK-8668 and 64 dose combination.')
+#print('It takes', hsa_end-hsa_start, 'seconds to get the hsa predictions for cell line A2058 drugs 5-FU and '
+#                                         'MK-8668 and 64 dose combination.')
 
 loewe_start = time.time()
-loewe_predictions = np.array([[comb.get_loewe_response(np.array([x[j][i], y[j][i]]), False, None) for i in
-                               range(len(x[0]))] for j in range(len(x[:, 0]))])
+#loewe_predictions = np.array([[comb.get_loewe_response(np.array([x[j][i], y[j][i]]), False, None) for i in
+#                               range(len(x[0]))] for j in range(len(x[:, 0]))])
 loewe_end = time.time()
-print('It takes', loewe_end-loewe_start, 'seconds to get the loewe predictions for cell line A2058 drugs 5-FU and '
-                                         'MK-8668 and 64 dose combination.')
+#print('It takes', loewe_end-loewe_start, 'seconds to get the loewe predictions for cell line A2058 drugs 5-FU and '
+#                                         'MK-8668 and 64 dose combination.')
 
-ax.scatter(comb_doses_a, comb_doses_b, comb_responses, color='green', marker='o')
+ax.scatter(comb_doses_a, comb_doses_b, comb_responses, color='k', marker='o')
 #ax.scatter(drug_a_doses, np.zeros(len(drug_a_doses)), drug_a_responses, color='green', marker='o')
 #ax.scatter(np.zeros(len(drug_b_doses)), drug_b_doses, drug_b_responses, color='r', marker='o')
 
@@ -148,9 +148,9 @@ ax.set_ylabel('MK-8669 (µM)')
 ax.set_zlabel('viability')
 
 
-ax.plot_surface(x, y, bliss_predictions, color='blue', alpha=0.5)
+#ax.plot_surface(x, y, bliss_predictions, color='blue', alpha=0.7)
 #ax.plot_surface(x, y, hand_predictions, color='green', alpha=0.3)
-#ax.plot_surface(x, y, hsa_predictions, color='r', alpha=0.5)
+ax.plot_surface(x, y, hsa_predictions, color='r', alpha=0.5)
 #ax.plot_surface(x, y, loewe_predictions, color='yellow', alpha=0.8)
 
 mean = np.zeros(16)
@@ -167,10 +167,10 @@ for i in range(16):
 a_dose = a_dose.reshape((4,4))
 b_dose = b_dose.reshape((4,4))
 mean = mean.reshape((4,4))
+#print(mean)
 
-
-ax.plot_surface(a_dose, b_dose, mean, color='red', alpha=0.5)
-ax.set_title("bliss prediction and responses")
+#ax.plot_surface(a_dose, b_dose, mean, color='red', alpha=0.5)
+ax.set_title("hsa prediction and responses")
 
 #plt.show()
 
@@ -192,15 +192,16 @@ for i in range(16):
     responses = [comb_responses[4 * i + j] for j in range(4)]
 
     sig_start = time.time()
-    significances[i] = comb.get_significance(np.array([a_dose, b_dose]), responses, 'loewe')
+    significances[i] = comb.get_significance(np.array([a_dose, b_dose]), responses, 'hsa')
     sig_end = time.time()
     sig_time += sig_end - sig_start
     # significances[i] = "{:.4f}".format(significance)
 
-print('It takes ', sig_time, ' seconds to calculate the 16 significances for the drug combination')
+#print('It takes ', sig_time, ' seconds to calculate the 16 significances for the drug combination')
 #significance = comb.sum_significance(np.array([comb_doses_a, comb_doses_b]), comb_responses, 'loewe')
 #print(significance)
 significances = np.reshape(significances, (4, 4))
+
 #print(significances)
 
 #fig, ax = plt.subplots()
@@ -228,7 +229,7 @@ plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
 cbar = ax.figure.colorbar(im, ax=ax)
 cbar.ax.set_ylabel('log of significance', rotation=-90, va="bottom")
 
-ax.set_title("bliss significance levels")
+ax.set_title("hsa significance levels")
 fig.tight_layout()
 plt.show()
 print('ende')

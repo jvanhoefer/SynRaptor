@@ -4,7 +4,7 @@ from numpy import random
 from SynRaptor import Combination
 from SynRaptor import drug
 
-number_of_iterations = 1000
+number_of_iterations = 100
 null_model = 'bliss'
 data_hsa = np.zeros(number_of_iterations)
 significances = np.zeros(number_of_iterations)
@@ -36,7 +36,7 @@ for i in range(number_of_iterations):
     # create synthetic data, fit single drugs,
 
     synthetic_data = [get_combination_response(dose_combination, False, None) +
-                     np.random.normal(loc=0.0, scale=np.sqrt(comb.sigma2), size=None) for i in range(10000)]
+                     np.random.normal(loc=0.0, scale=np.sqrt(comb.sigma2), size=None) for i in range(4)]
 
     # calculate significance
 

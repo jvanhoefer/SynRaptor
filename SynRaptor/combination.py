@@ -8,6 +8,8 @@ from scipy.integrate import odeint
 from scipy.optimize import minimize
 from scipy.stats import chi2
 
+from SynRaptor import drug
+
 
 class Combination:
     """
@@ -526,7 +528,7 @@ class Combination:
                 grad = 2 * (response - validation_responses) * grad_prep
                 return residual, grad
             else:
-                return ((validation_responses - get_combination_response(validation_doses, False, parameters)) / \
+                return ((validation_responses - get_combination_response(validation_doses, False, parameters)) /
                         (self.sigma2 / number_of_responses) ** 2)
 
         if not gradient:
@@ -685,9 +687,14 @@ class Combination:
         if parameters is None:
             parameters = [drug.parameters for drug in self.drug_list]
         parameters_matrix = self._vector_to_matrix(parameters)
-        sum_of_responses = np.sum([np.sum(drug.response_data) for drug in drug_list])
-        sum_of_predictions = np.sum([drug_list[i].get_multiple_responses(drug_list[i].dose_data, parameters_matrix[i])
-                                     for i in range(len(drug_list))])
+        sum_of_responses = np.sum([np.sum(drug.response_data) for drug in self.drug_list])
+#        sum_of_predictions = np.sum(
+#            [self.drug_list[i].get_multiple_responses(self.drug_list[i].dose_data, parameters_matrix[i])
+#             for i in range(len(self.drug_list))])
+        sum_of_predictions = 0
+        for i in range(len(Comb.drug_list)):
+            sum_of_predictions += np.sum(
+                Comb.drug_list[i].get_multiple_responses(Comb.drug_list[i].dose_data, parameters_matrix[i]))
 
         get_combination_response = self.combination_response(null_model)
 
@@ -700,7 +707,7 @@ class Combination:
         sum_of_responses += np.sum(combination_responses)
 
         number_of_datapoints = np.sum(
-            [len(drug.dose_data) for drug in drug_list]) + number_of_validation_points
+            [len(drug.dose_data) for drug in self.drug_list]) + number_of_validation_points
         likelihood = (sum_of_responses - sum_of_predictions) ** 2 / (number_of_datapoints * self.sigma2)
 
         if not gradient_flag:
@@ -708,10 +715,10 @@ class Combination:
 
         else:
             sum_of_gradients = np.array([])
-            for i in range(len(drug_list)):
+            for i in range(len(self.drug_list)):
                 sum_of_grad_i = 0
-                for j in range(len(drug_list[i].dose_data)):
-                    (res, grad) = drug_list[i].get_response(drug_list[i].dose_data[j], None, True)
+                for j in range(len(self.drug_list[i].dose_data)):
+                    (res, grad) = self.drug_list[i].get_response(self.drug_list[i].dose_data[j], None, True)
                     sum_of_grad_i += grad
                 sum_of_gradients = np.append(sum_of_gradients, sum_of_grad_i)
 
@@ -747,6 +754,7 @@ class Combination:
         solution.fun:
             the optimized sum likelihood
         """
+
         def min2loglikelihood(parameters: np.array,  # parameters is array of length 3 * len(drug_list)
                               null_model: str):
             return self.old_fit_sum_likelihood(dose_combination, combination_responses, parameters, null_model, True)
@@ -819,7 +827,7 @@ class Combination:
             number_of_responses = len(responses)
 
         responses = np.mean(responses)
-        theta_y = [drug.parameters for drug in drug_list]
+        theta_y = [drug.parameters for drug in self.drug_list]
         rss_y_y = self.evaluate_rss_single_drug_data(theta_y, False)
         rss_y_yz = rss_y_y + self.evaluate_validation_residual(responses, dose_combination[:, 0], False,
                                                                self._vector_to_matrix(theta_y), null_model,
@@ -857,3 +865,18 @@ class Combination:
             sum += self.drug_list[i].get_sigma2()
         self.sigma2 = sum / l
         return
+
+
+dose = np.array([0.2, 0.7])
+response = np.array([0.73, 0.35])
+A = drug.Drug(dose, response, False, 1)
+B = drug.Drug(response, dose, False, 1)
+A.fit_parameters()
+B.fit_parameters()
+Comb = Combination([A, B])
+res = Comb.get_bliss_response(dose, False)
+sig = Comb.get_significance(np.array([[0.2], [0.2]]), np.array([0.7]), 'bliss')
+#sig = Comb.old_fit_sum_likelihood(np.array([dose, dose]), np.array([0.7, 0.3]))
+print(sig)
+
+

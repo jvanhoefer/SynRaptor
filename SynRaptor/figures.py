@@ -10,150 +10,19 @@ from SynRaptor import drug_comb_dict as dct
 import scipy as sp
 
 
-# TODO funktion die parameters fitted falls None
-
-
-def fill_parameters(drug: drug):
-    if drug.parameters is None:
-        drug.fit_parameters(10)
-    return
-
-
-def get_figures(drug_a_name: str,
-                drug_b_name: str,
-                cell_line: str):
-    combi = pd.read_excel("C:/Users/Carolin/PycharmProjects/GitHub/SynRaptor/SynRaptor/combined_agent_response.xls")
-    validation_data = combi.loc[(combi['cell_line'] == cell_line) & (combi['drugA_name'] == drug_a_name) &
-                                (combi['drugB_name'] == drug_b_name)][
-        ['drugA Conc (µM)', 'drugB Conc (µM)', 'viability1']]  # TODO gibts die selbe kombi auch andersrum?
-
-    drug_a = drug_dict[(drug_a_name, cell_line)]
-    drug_b = drug_dict[(drug_b_name, cell_line)]
-    combination = Combination([drug_a, drug_b])
-    alpha = combination.get_significance(np.array([validation_data.iloc[0, 0], validation_data.iloc[0, 1]]),
-                                         validation_data.iloc[0, 2], 'hsa')
-    # TODO plot single drug
-
-    return alpha
-
-
-# print(get_figures('5-FU', 'MK-8669', 'A2058'))
-
-
-def get_isobole(effect,
-                null_model: str,
-                comb: Combination):
-    """
-    Calculates isobole for given model and effect.
-
-    """
-
-    if null_model == 'bliss':
-        get_combination_response = comb.get_bliss_response
-    elif null_model == 'hsa':
-        get_combination_response = comb.get_hsa_response
-    elif null_model == 'loewe':
-        get_combination_response = comb.get_loewe_response
-    elif null_model == 'hand':
-        get_combination_response = comb.get_hand_response
-    else:
-        ValueError("invalid null model")
-
-    doses_a = np.array([])
-    doses_b = np.array([])
-
-    doses_a = np.append(doses_a, comb.drug_list[0].inverse_evaluate(effect))
-    doses_b = np.append(doses_b, 0)
-
-    ratio = [1 / 9, 1 / 4, 3 / 7, 4 / 6, 1, 6 / 4, 7 / 3, 4, 9]
-
-    for r in ratio:
-        def isobole_equation(c):
-            dose_combination = np.array([c, r * c])
-            return get_combination_response(dose_combination, False, None) - effect
-
-        dose_a = sp.optimize.bisect(isobole_equation, 0, 10)
-
-        doses_a = np.append(doses_a, dose_a)
-        doses_b = np.append(doses_b, r * dose_a)
-
-    doses_a = np.append(doses_a, 0)
-    doses_b = np.append(doses_b, comb.drug_list[1].inverse_evaluate(effect))
-
-    return doses_a, doses_b
-
-
-def get_validation_interval(effect,
-                            null_model: str,
-                            alpha: float,
-                            comb: Combination):
-    """
-    Calculates bound of validation interval for 10 dose ratios and returns arrays for plotting.
-    """
-    doses_a = np.array([])
-    doses_b = np.array([])
-
-    ratio = np.linspace(0,1,0.01)#[0, 1 / 9, 1 / 4, 3 / 7, 4 / 6, 1, 6 / 4, 7 / 3, 4, 9]
-
-    for r in ratio:
-        def significance_equation(c):
-            dose_combination = np.array([(1-r)*c, r * c])
-            return comb.get_significance(np.array(dose_combination), effect, null_model) - alpha
-
-        dose_a = sp.optimize.bisect(significance_equation, 0, 10)
-
-        doses_a = np.append(doses_a, dose_a)
-        doses_b = np.append(doses_b, r * dose_a)
-
-    def significance_equation(c):
-        dose_combination = np.array([0, c])
-        return comb.get_significance(dose_combination, effect, null_model) - alpha
-
-    dose_b = sp.optimize.bisect(significance_equation, 0, 10)
-
-    doses_a = np.append(doses_a, 0)
-    doses_b = np.append(doses_b, dose_b)
-
-    return doses_a, doses_b
-
-
-def plot_validation_isoboles(effect: float,
-                             null_model: str,
-                             alpha: float,
-                             comb: Combination):
-    """
-    Creates image using get_isobole and get_validation_interval.
-    """
-    (isobole_x, isobole_y) = get_isobole(effect, null_model, comb)
-    print(isobole_x, isobole_y)
-    # plt.loglog(isobole_x, isobole_y, linestyle='None', marker='o', color='green', label='isobole')
-    plt.plot(isobole_x, isobole_y, linestyle='None', marker='o', color='green', label='isobole')
-    # (validation_x, validation_y) = get_validation_interval(effect, null_model, alpha, comb)
-    # plt.plot(validation_x, validation_y, linestyle='None', marker='.', color='blue', label='validation')
-    plt.title(null_model)
-    plt.show()
-
-
 def surface_plot(comb: Combination,
                  comb_doses_a,
                  comb_doses_b,
                  comb_responses,
-                 null_model: str = 'bliss'):
-    if null_model == 'bliss':
-        get_combination_response = comb.get_bliss_response
-    elif null_model == 'hsa':
-        get_combination_response = comb.get_hsa_response
-    elif null_model == 'loewe':
-        get_combination_response = comb.get_loewe_response
-    elif null_model == 'hand':
-        get_combination_response = comb.get_hand_response
-    else:
-        ValueError("invalid null model")
+                 null_model: str = 'bliss',
+                 color: str = 'blue'):
+    get_combination_response = comb.combination_response(null_model)
 
     fig = plt.figure()
 
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_title(null_model)
+    ax = fig.add_subplot(121, projection='3d')
+    title = null_model + ' prediction and responses'
+    ax.set_title(title)
 
     x = np.arange(0, 10.3, 0.25)  # this is optimized for 5-FU
     y = np.arange(0, 0.012, 0.0005)  # this is optimized for MK-8669
@@ -162,7 +31,8 @@ def surface_plot(comb: Combination,
     predictions = np.array([[get_combination_response(np.array([x[j][i], y[j][i]]), False, None) for i in
                              range(len(x[0]))] for j in range(len(x[:, 0]))])
 
-    ax.scatter(comb_doses_a, comb_doses_b, comb_responses, color='blue', marker='o')
+    ax.scatter(comb_doses_a, comb_doses_b, comb_responses, color='k', marker='o')
+
     # here it is possible to plot the single drug data as well
     # ax.scatter(drug_a_doses, np.zeros(len(drug_a_doses)), drug_a_responses, color='green', marker='o')
     # ax.scatter(np.zeros(len(drug_b_doses)), drug_b_doses, drug_b_responses, color='r', marker='o')
@@ -171,6 +41,127 @@ def surface_plot(comb: Combination,
     ax.set_ylabel('dose_b')
     ax.set_zlabel('response')
 
-    ax.plot_surface(x, y, predictions, color='blue', alpha=0.5)
+    ax.plot_surface(x, y, predictions, color=color, alpha=0.5)
+
+    ax = fig.add_subplot(122)  # significances plot
+
+    a_labels = ['0.35', '1.08', '3.25', '10.0']
+    b_labels = ['0.00011', '0.0005', '0.00223', '0.01']
+
+    significances = np.zeros(16)
+
+    for i in range(16):
+        a_dose = [comb_doses_a[4 * i]]
+        b_dose = [comb_doses_b[4 * i]]
+        responses = [comb_responses[4 * i + j] for j in range(4)]
+
+        significances[i] = comb.get_significance(np.array([a_dose, b_dose]), responses, null_model)
+
+    significances = np.reshape(significances, (4, 4))
+
+    # print(significances)
+
+    # fig, ax = plt.subplots()
+    im = ax.imshow(np.log(significances))
+
+    # We want to show all ticks...
+    ax.set_xticks(np.arange(len(a_labels)))
+    ax.set_yticks(np.arange(len(b_labels)))
+    # ... and label them with the respective list entries
+    ax.set_xticklabels(a_labels)
+    ax.set_yticklabels(b_labels)
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
+
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel('log of significance', rotation=-90, va="bottom")
+    title = null_model + ' significance levels'
+    ax.set_title(title)
+    fig.tight_layout()
+    plt.show()
+
+
+def combination_plot(comb: Combination,
+                 comb_doses_a,
+                 comb_doses_b,
+                 comb_responses,
+                 null_model: str = 'bliss',
+                 color: str = 'blue'):
+    get_combination_response = comb.combination_response(null_model)
+
+    fig = plt.figure()
+
+    ax = fig.add_subplot(111, projection='3d')
+    title = null_model + ' prediction and responses'
+    ax.set_title(title)
+
+    x = np.arange(0, 10.3, 0.25)  # this is optimized for 5-FU
+    y = np.arange(0, 0.012, 0.0005)  # this is optimized for MK-8669
+    x, y = np.meshgrid(x, y)
+
+    predictions = np.array([[get_combination_response(np.array([x[j][i], y[j][i]]), False, None) for i in
+                             range(len(x[0]))] for j in range(len(x[:, 0]))])
+
+    ax.scatter(comb_doses_a, comb_doses_b, comb_responses, color='k', marker='o')
+
+    # here it is possible to plot the single drug data as well
+    # ax.scatter(drug_a_doses, np.zeros(len(drug_a_doses)), drug_a_responses, color='green', marker='o')
+    # ax.scatter(np.zeros(len(drug_b_doses)), drug_b_doses, drug_b_responses, color='r', marker='o')
+
+    ax.set_xlabel('dose_a')
+    ax.set_ylabel('dose_b')
+    ax.set_zlabel('response')
+
+    ax.plot_surface(x, y, predictions, color=color, alpha=0.5)
+    plt.show()
+
+
+def drug_plot(D: drug):#TODO monotone increasing
+    """
+    Plots the Hill curve according to parameters of Drug D and dose response data points of D.
+    """
+    fig = plt.figure('plot_drug')
+    ax = fig.add_subplot(121)
+    #parameters plot
+    if D.parameters is not None:
+        a = D.parameters[0]
+        n = D.parameters[1]
+        s = D.parameters[2]
+        x = np.linspace(0, 2 * a, 100)  # 100 values from 0 to 2*a, as a is the Half-Max of Hill curve.
+        y = D.control_response - s * x ** n / (a ** n + x ** n)
+        plt.plot(x, y, label='parameters')
+
+    #responses plot
+    #D.dose_data.sort()
+    #D.response_data.sort()#TODO numpy.argsort
+    plt.plot(D.dose_data, D.response_data, linestyle='None', marker='.', label='responses')
+
+    #design
+    plt.title("linear scale")
+    plt.xlabel('dose')
+    plt.ylabel('response')
+    plt.legend
+    ax = fig.add_subplot(122)
+    # parameters plot
+    if D.parameters is not None:
+        a = D.parameters[0]
+        n = D.parameters[1]
+        s = D.parameters[2]
+        x = np.linspace(0, 2 * a, 100)  # 100 values from 0 to 2*a, as a is the Half-Max of Hill curve.
+        y = D.control_response - s * x ** n / (a ** n + x ** n)
+        plt.plot(x, y, label='parameters')
+
+    # responses plot
+    # D.dose_data.sort()
+    # D.response_data.sort()#TODO numpy.argsort
+    plt.semilogx(D.dose_data, D.response_data, linestyle='None', marker='.')
+
+    # design
+    plt.title("logarithmic scale")
+    plt.xlabel('dose')
+    plt.ylabel('response')
+    plt.legend
 
     plt.show()
