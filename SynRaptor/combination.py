@@ -591,6 +591,7 @@ class Combination:
         initial_parameters = self._drug_list_to_parameters()
         solution = minimize(min2loglikelihood, initial_parameters, args=null_model, method='TNC', jac=True,
                             bounds=bounds)
+        #return solution.x
         return solution.fun
 
     def _matrix_to_vector(self,
@@ -688,9 +689,9 @@ class Combination:
             parameters = [drug.parameters for drug in self.drug_list]
         parameters_matrix = self._vector_to_matrix(parameters)
         sum_of_responses = np.sum([np.sum(drug.response_data) for drug in self.drug_list])
-#        sum_of_predictions = np.sum(
-#            [self.drug_list[i].get_multiple_responses(self.drug_list[i].dose_data, parameters_matrix[i])
-#             for i in range(len(self.drug_list))])
+        #        sum_of_predictions = np.sum(
+        #            [self.drug_list[i].get_multiple_responses(self.drug_list[i].dose_data, parameters_matrix[i])
+        #             for i in range(len(self.drug_list))])
         sum_of_predictions = 0
         for i in range(len(Comb.drug_list)):
             sum_of_predictions += np.sum(
@@ -833,7 +834,23 @@ class Combination:
                                                                self._vector_to_matrix(theta_y), null_model,
                                                                number_of_responses)
         rss_yz_yz = self.fit_to_full_data(responses, dose_combination[:, 0], null_model)
+
         difference = rss_y_yz - rss_yz_yz
+        print('theta_y: ', theta_y, ' rss_y_y: ', rss_y_y, ' rss_y_yz: ', rss_y_yz, ' rss_yz_yz: ', rss_yz_yz, ' difference: ', difference)
+        return chi2.sf(difference, 1, loc=0, scale=1)
+
+    def get_sig_new(self,
+                    dose_combination: np.array,
+                    responses: np.array,
+                    null_model: str = 'bliss'):
+
+        responses = np.mean(responses)
+        theta_y = [drug.parameters for drug in self.drug_list]
+        rss_y_y = self.evaluate_rss_single_drug_data(theta_y, False)
+        theta_yz = self.fit_to_full_data(responses, dose_combination[:, 0], null_model)
+        rss_yz_y = self.evaluate_rss_single_drug_data(theta_yz, False)
+
+        difference = rss_yz_y - rss_y_y
 
         return chi2.sf(difference, 1, loc=0, scale=1)
 
@@ -871,12 +888,14 @@ dose = np.array([0.2, 0.7])
 response = np.array([0.73, 0.35])
 A = drug.Drug(dose, response, False, 1)
 B = drug.Drug(response, dose, False, 1)
-A.fit_parameters()
-B.fit_parameters()
+A.fit_parameters(999)
+B.fit_parameters(999)
+print('A.parameters: ', A.parameters)
+print('B.parameters: ', B.parameters)
+
 Comb = Combination([A, B])
 res = Comb.get_bliss_response(dose, False)
+#sig = Comb.get_sig_new(np.array([[0.2], [0.2]]), np.array([0.7]), 'bliss')
 sig = Comb.get_significance(np.array([[0.2], [0.2]]), np.array([0.7]), 'bliss')
-#sig = Comb.old_fit_sum_likelihood(np.array([dose, dose]), np.array([0.7, 0.3]))
-print(sig)
-
-
+# sig = Comb.old_fit_sum_likelihood(np.array([dose, dose]), np.array([0.7, 0.3]))
+print('The significance is: ', sig)

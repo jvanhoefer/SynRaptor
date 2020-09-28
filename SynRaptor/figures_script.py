@@ -98,11 +98,15 @@ comb_responses = np.array([0.93339, 0.94425, 1.04891, 0.87357, 0.85792, 0.8815, 
 
 #insert drug names and cell line here:
 
-drug_a_name = '5-FU'
-drug_b_name = 'MK-8669'
-combination_name = '5-FU & MK-8669'
-cell_line = 'A2058'
+#drug_a_name = '5-FU'
+#drug_b_name = 'MK-8669'
+#combination_name = '5-FU & MK-8669'
+#cell_line = 'A2058'
 
+#drug_a_name = 'AZD1775'
+drug_b_name = 'ABT-888'
+#combination_name = 'AZD1775 & MK-8776'
+combination_name = '5-FU & ABT-888'
 
 #here the drug and combination objects are created
 
@@ -121,20 +125,20 @@ cell_line = 'A2058'
 
 #here the significance level is printed
 
-print('Significance level per null_model:')
-print('Hand:', comb.get_significance(dose_combination, comb_responses, 'hand'))
-print('Bliss:', comb.get_significance(dose_combination, comb_responses, 'bliss'))
-print('HSA:', comb.get_significance(dose_combination, comb_responses, 'hsa'))
-print('Loewe:', comb.get_significance(dose_combination, comb_responses, 'loewe'))
+#print('Significance level per null_model:')
+#print('Hand:', comb.get_significance(dose_combination, comb_responses, 'hand'))
+#print('Bliss:', comb.get_significance(dose_combination, comb_responses, 'bliss'))
+#print('HSA:', comb.get_significance(dose_combination, comb_responses, 'hsa'))
+#print('Loewe:', comb.get_significance(dose_combination, comb_responses, 'loewe'))
 
 
 
 
 #here the null model predictions are plotted
 
-figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'bliss', 'blue')
+#figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'bliss', 'blue')
 #figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hsa', 'green')
 #figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'loewe', 'r')
 #figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hand', 'yellow')
 
-#figures.drug_plot(drug_a)
+figures.drug_plot(drug_a)

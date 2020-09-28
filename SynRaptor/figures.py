@@ -59,7 +59,7 @@ def surface_plot(comb: Combination,
 
     significances = np.reshape(significances, (4, 4))
 
-    # print(significances)
+    #print(significances)
 
     # fig, ax = plt.subplots()
     im = ax.imshow(np.log(significances))
