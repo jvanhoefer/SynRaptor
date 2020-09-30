@@ -96,6 +96,8 @@ comb_responses = np.array([0.93339, 0.94425, 1.04891, 0.87357, 0.85792, 0.8815, 
                            0.42699, 0.3056, 0.34517, 0.39684, 0.36953, 0.3684, 0.39696,
                            0.36154])
 
+
+
 #insert drug names and cell line here:
 
 #drug_a_name = '5-FU'
@@ -104,9 +106,9 @@ comb_responses = np.array([0.93339, 0.94425, 1.04891, 0.87357, 0.85792, 0.8815, 
 #cell_line = 'A2058'
 
 #drug_a_name = 'AZD1775'
-drug_b_name = 'ABT-888'
+#drug_b_name = 'ABT-888'
 #combination_name = 'AZD1775 & MK-8776'
-combination_name = '5-FU & ABT-888'
+#combination_name = '5-FU & ABT-888'
 
 #here the drug and combination objects are created
 
@@ -136,9 +138,26 @@ combination_name = '5-FU & ABT-888'
 
 #here the null model predictions are plotted
 
+#figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'loewe', 'r')
 #figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'bliss', 'blue')
 #figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hsa', 'green')
-#figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'loewe', 'r')
 #figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hand', 'yellow')
 
-figures.drug_plot(drug_a)
+#figures.drug_plot(drug_a)
+
+
+#figures.combination_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'loewe', 'r')
+figures.combination_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'bliss', 'blue')
+#figures.combination_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hsa', 'green')
+#figures.combination_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hand', 'yellow')
+
+comb_responses = np.array([1.093339, 1.094425, 1.04891, 1.087357, 0.085792, 0.08815, 0.082624,
+                           0.079271, 0.066017, 0.063208, 0.066879, 0.065039, 0.061066, 0.056125,
+                           0.057622, 0.049975, 0.07159, 0.095975, 0.087508, 0.095223, 0.066012,
+                           0.082805, 0.070756, 2.076596, 2.02928, 2.069079, 2.58527, 2.53649,
+                           2.56234, 2.6296, 2.52155, 0.51398, 0.71438, 0.70725, 0.741,
+                           0.78635, 0.56747, 0.065913, 0.046289, 0.061324, 0.057185, 0.053188,
+                           0.049668, 0.051762, 0.054672, 0.049466, 0.047421, 0.44041, 0.55738,
+                           0.54691, 1.57181, 1.56162, 1.46394, 1.48216, 1.49246, 1.46075,
+                           3.42699, 3.3056, 3.34517, 3.39684, 3.36953, 3.3684, 3.39696,
+                           3.36154])#TODO diese daten sind manipuliert

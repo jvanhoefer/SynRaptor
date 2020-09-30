@@ -21,8 +21,8 @@ def surface_plot(comb: Combination,
     fig = plt.figure()
 
     ax = fig.add_subplot(121, projection='3d')
-    title = null_model + ' prediction and responses'
-    ax.set_title(title)
+    #title = null_model + ' prediction and responses'
+    #ax.set_title(title, fontsize=17)
 
     x = np.arange(0, 10.3, 0.25)  # this is optimized for 5-FU
     y = np.arange(0, 0.012, 0.0005)  # this is optimized for MK-8669
@@ -37,9 +37,9 @@ def surface_plot(comb: Combination,
     # ax.scatter(drug_a_doses, np.zeros(len(drug_a_doses)), drug_a_responses, color='green', marker='o')
     # ax.scatter(np.zeros(len(drug_b_doses)), drug_b_doses, drug_b_responses, color='r', marker='o')
 
-    ax.set_xlabel('dose_a')
-    ax.set_ylabel('dose_b')
-    ax.set_zlabel('response')
+    ax.set_xlabel('dose of 5-FU', fontsize=14)
+    ax.set_ylabel('dose of MK-8669', fontsize=14)
+    ax.set_zlabel('response', fontsize=14)
 
     ax.plot_surface(x, y, predictions, color=color, alpha=0.5)
 
@@ -51,13 +51,14 @@ def surface_plot(comb: Combination,
     significances = np.zeros(16)
 
     for i in range(16):
-        a_dose = [comb_doses_a[4 * i]]
-        b_dose = [comb_doses_b[4 * i]]
+        a_dose = comb_doses_a[4 * i]
+        b_dose = comb_doses_b[4 * i]
         responses = [comb_responses[4 * i + j] for j in range(4)]
 
         significances[i] = comb.get_significance(np.array([a_dose, b_dose]), responses, null_model)
 
     significances = np.reshape(significances, (4, 4))
+    print('significances: ', significances)
 
     #print(significances)
 
@@ -68,17 +69,17 @@ def surface_plot(comb: Combination,
     ax.set_xticks(np.arange(len(a_labels)))
     ax.set_yticks(np.arange(len(b_labels)))
     # ... and label them with the respective list entries
-    ax.set_xticklabels(a_labels)
-    ax.set_yticklabels(b_labels)
+    ax.set_xticklabels(a_labels, fontsize=13)
+    ax.set_yticklabels(b_labels, fontsize=13)
 
     # Rotate the tick labels and set their alignment.
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
              rotation_mode="anchor")
 
     cbar = ax.figure.colorbar(im, ax=ax)
-    cbar.ax.set_ylabel('log of significance', rotation=-90, va="bottom")
-    title = null_model + ' significance levels'
-    ax.set_title(title)
+    cbar.ax.set_ylabel('log of significance', rotation=-90, va="bottom", fontsize=17)
+    #title = null_model + ' significance levels'
+    #ax.set_title(title, fontsize=17)
     fig.tight_layout()
     plt.show()
 
@@ -94,8 +95,8 @@ def combination_plot(comb: Combination,
     fig = plt.figure()
 
     ax = fig.add_subplot(111, projection='3d')
-    title = null_model + ' prediction and responses'
-    ax.set_title(title)
+    #title = null_model + ' prediction and responses'
+    #ax.set_title(title, fontsize=26)
 
     x = np.arange(0, 10.3, 0.25)  # this is optimized for 5-FU
     y = np.arange(0, 0.012, 0.0005)  # this is optimized for MK-8669
@@ -110,9 +111,9 @@ def combination_plot(comb: Combination,
     # ax.scatter(drug_a_doses, np.zeros(len(drug_a_doses)), drug_a_responses, color='green', marker='o')
     # ax.scatter(np.zeros(len(drug_b_doses)), drug_b_doses, drug_b_responses, color='r', marker='o')
 
-    ax.set_xlabel('dose_a')
-    ax.set_ylabel('dose_b')
-    ax.set_zlabel('response')
+    ax.set_xlabel('dose 5-FU', fontsize=20)
+    ax.set_ylabel('dose MK-8669', fontsize=20)
+    ax.set_zlabel('response', fontsize=20)
 
     ax.plot_surface(x, y, predictions, color=color, alpha=0.5)
     plt.show()

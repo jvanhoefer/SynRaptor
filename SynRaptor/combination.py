@@ -473,7 +473,7 @@ class Combination:
             return sum_of_residuals / self.sigma2, grad / self.sigma2
 
     def evaluate_validation_residual(self,
-                                     validation_responses: np.array,
+                                     validation_responses_mean: float,
                                      validation_doses: np.array,
                                      gradient: bool,
                                      parameters: np.array = None,  # 2dim array
@@ -484,7 +484,7 @@ class Combination:
 
         Parameters
         ----------
-        validation_responses: float
+        validation_responses_mean: float
             measured response of validation experiment
 
         validation_doses: np.array
@@ -515,46 +515,27 @@ class Combination:
         if parameters is None:
             parameters = [drug.parameters for drug in self.drug_list]
 
-        if number_of_responses is None:
-            if isinstance(validation_responses, float):
-                number_of_responses = 1
-            else:
-                number_of_responses = len(validation_responses)
-
-        if isinstance(validation_responses, float):
-            if gradient:
-                (response, grad_prep) = get_combination_response(validation_doses, True, parameters)
-                residual = ((validation_responses - response) / self.sigma2) ** 2
-                grad = 2 * (response - validation_responses) * grad_prep
-                return residual, grad
-            else:
-                return ((validation_responses - get_combination_response(validation_doses, False, parameters)) /
-                        (self.sigma2 / number_of_responses) ** 2)
-
-        if not gradient:
-            return np.sum([((validation_responses[i] -
-                             get_combination_response(validation_doses[:, i], False, parameters)) / self.sigma2) ** 2
-                           for i in range(number_of_responses)])
-
-        residual = 0
-        grad = np.zeros(6)
-        for i in range(number_of_responses):
-            (response_i, grad_i) = get_combination_response(validation_doses[:, i], True, parameters)
-            residual += ((validation_responses[i] - response_i) / self.sigma2) ** 2
-            grad += 2 * (response_i - validation_responses[i]) * grad_i
-        return residual, grad
+        if gradient:
+            (response, grad_prep) = get_combination_response(validation_doses, True, parameters)
+            residual = (validation_responses_mean - response) ** 2 / (self.sigma2 / number_of_responses)
+            grad = 2 * (response - validation_responses_mean) * grad_prep
+            return residual, grad
+        else:
+            return (validation_responses_mean - get_combination_response(validation_doses, False, parameters)) ** 2 /\
+                    (self.sigma2 / number_of_responses)
 
     def fit_to_full_data(self,
-                         validation_responses: np.array,
+                         validation_responses_mean: float,
                          validation_doses: np.array,
                          null_model: str = 'bliss',
-                         number_of_responses: int = None):
+                         number_of_responses: int = None,
+                         minimum_value: float = None):
         """
         Fits drug parameters to data including validation experiment.
 
         Parameters
         ----------
-        validation_responses: np.array
+        validation_responses_mean: float
             response data of validation experiment
 
         validation_doses: np.array
@@ -572,27 +553,29 @@ class Combination:
               minimal value of -2LL for given data
         """
 
-        if number_of_responses is None:
-            if isinstance(validation_responses, float):
-                number_of_responses = 1
-            else:
-                number_of_responses = len(validation_responses)
-
         def min2loglikelihood(parameters: np.array,  # parameters is array of length 3 * len(drug_list)
                               null_model: str):
             parameters = self._vector_to_matrix(parameters)
             (r1, grad1) = self.evaluate_rss_single_drug_data(parameters, True)
-            (r2, grad2) = self.evaluate_validation_residual(validation_responses, validation_doses, True, parameters,
+            (r2, grad2) = self.evaluate_validation_residual(validation_responses_mean, validation_doses, True,
+                                                            parameters,
                                                             null_model, number_of_responses)
             return r1 + r2, grad1 + grad2
 
-        bounds = numpy.matlib.repmat(np.array([(1e-8, 10), (1e-8, 10), (1e-8, 0.99)]), len(self.drug_list), 1)
+        bounds = numpy.matlib.repmat(np.array([(1e-8, 10), (1e-8, 20), (1e-8, 0.99)]), len(self.drug_list), 1)
 
-        initial_parameters = self._drug_list_to_parameters()
-        solution = minimize(min2loglikelihood, initial_parameters, args=null_model, method='TNC', jac=True,
+        minimum_parameters = self._drug_list_to_parameters()
+        initial_parameters = self._get_optimizations_starts(((1e-8, 10), (1e-8, 20), (1e-8, 0.99)), 10)
+
+        for i in range(10):
+            solution = minimize(min2loglikelihood, initial_parameters[i], args=null_model, method='TNC', jac=True,
                             bounds=bounds)
-        #return solution.x
-        return solution.fun
+            if solution.fun < minimum_value:
+                print('kleiner geworden')
+                minimum_value = solution.fun
+                minimum_parameters = solution.x
+        #return minimum_parameters
+        return minimum_value
 
     def _matrix_to_vector(self,
                           matrix: np.array):
@@ -617,6 +600,41 @@ class Combination:
         for i in range(number_of_drugs):
             parameters[3 * i: 3 * i + 3] = self.drug_list[i].parameters
         return parameters
+
+    def _get_optimizations_starts(self,
+                                  bounds: tuple,
+                                  n_starts: int = 10):
+        """Samples initial values in the bounds via Latin Hypercube sampling.
+
+        Parameters
+        ----------
+        bounds: tuple
+            the bounds in which sampled values should be
+
+        n_starts: int
+            number of sampled values
+
+        Returns
+        -------
+        initialValues:
+            initialValues for parameter optimization
+        """
+        initial_values = [[0] * 3 for i in range(n_starts)]
+        perm_a = np.random.permutation(n_starts)
+        perm_n = np.random.permutation(n_starts)
+        perm_s = np.random.permutation(n_starts)
+        perm_a2 = np.random.permutation(n_starts)
+        perm_n2 = np.random.permutation(n_starts)
+        perm_s2 = np.random.permutation(n_starts)
+        for i in range(n_starts):
+            initial_values[i] = [bounds[0][0] + (bounds[0][1] - bounds[0][0]) / n_starts * (perm_a[i] + 0.5),
+                                 bounds[1][0] + (bounds[1][1] - bounds[1][0]) / n_starts * (perm_n[i] + 0.5),
+                                 bounds[2][0] + (bounds[2][1] - bounds[2][0]) / n_starts * (perm_s[i] + 0.5),
+                                 bounds[0][0] + (bounds[0][1] - bounds[0][0]) / n_starts * (perm_a2[i] + 0.5),
+                                 bounds[1][0] + (bounds[1][1] - bounds[1][0]) / n_starts * (perm_n2[i] + 0.5),
+                                 bounds[2][0] + (bounds[2][1] - bounds[2][0]) / n_starts * (perm_s2[i] + 0.5)]
+
+        return initial_values
 
     def combination_response(self,
                              null_model: str = 'bliss'):
@@ -830,24 +848,37 @@ class Combination:
         responses = np.mean(responses)
         theta_y = [drug.parameters for drug in self.drug_list]
         rss_y_y = self.evaluate_rss_single_drug_data(theta_y, False)
-        rss_y_yz = rss_y_y + self.evaluate_validation_residual(responses, dose_combination[:, 0], False,
+        rss_y_yz = rss_y_y + self.evaluate_validation_residual(responses, dose_combination, False,
                                                                self._vector_to_matrix(theta_y), null_model,
                                                                number_of_responses)
-        rss_yz_yz = self.fit_to_full_data(responses, dose_combination[:, 0], null_model)
+        rss_yz_yz = self.fit_to_full_data(responses, dose_combination, null_model, number_of_responses, rss_y_yz)
 
         difference = rss_y_yz - rss_yz_yz
-        print('theta_y: ', theta_y, ' rss_y_y: ', rss_y_y, ' rss_y_yz: ', rss_y_yz, ' rss_yz_yz: ', rss_yz_yz, ' difference: ', difference)
-        return chi2.sf(difference, 1, loc=0, scale=1)
+        print('theta_y: ', theta_y, ' rss_y_y: ', rss_y_y, ' rss_y_yz: ', rss_y_yz, ' rss_yz_yz: ', rss_yz_yz,
+              ' difference: ', difference)
+        sig = chi2.sf(difference, 1, loc=0, scale=1)
+        print('sig: ', sig, ' difference: ', difference)
+        return sig
 
     def get_sig_new(self,
                     dose_combination: np.array,
                     responses: np.array,
                     null_model: str = 'bliss'):
 
+        if isinstance(responses, float):
+            number_of_responses = 1
+        else:
+            number_of_responses = len(responses)
+
         responses = np.mean(responses)
+
+
         theta_y = [drug.parameters for drug in self.drug_list]
         rss_y_y = self.evaluate_rss_single_drug_data(theta_y, False)
-        theta_yz = self.fit_to_full_data(responses, dose_combination[:, 0], null_model)
+        rss_y_yz = rss_y_y + self.evaluate_validation_residual(responses, dose_combination, False,
+                                                               self._vector_to_matrix(theta_y), null_model,
+                                                               number_of_responses)
+        theta_yz = self.fit_to_full_data(responses, dose_combination, null_model, number_of_responses, rss_y_yz)
         rss_yz_y = self.evaluate_rss_single_drug_data(theta_yz, False)
 
         difference = rss_yz_y - rss_y_y
@@ -888,14 +919,14 @@ dose = np.array([0.2, 0.7])
 response = np.array([0.73, 0.35])
 A = drug.Drug(dose, response, False, 1)
 B = drug.Drug(response, dose, False, 1)
-A.fit_parameters(999)
-B.fit_parameters(999)
+A.fit_parameters()
+B.fit_parameters()
 print('A.parameters: ', A.parameters)
 print('B.parameters: ', B.parameters)
 
 Comb = Combination([A, B])
 res = Comb.get_bliss_response(dose, False)
-#sig = Comb.get_sig_new(np.array([[0.2], [0.2]]), np.array([0.7]), 'bliss')
-sig = Comb.get_significance(np.array([[0.2], [0.2]]), np.array([0.7]), 'bliss')
+# sig = Comb.get_sig_new(np.array([[0.2], [0.2]]), np.array([0.7]), 'bliss')
+sig = Comb.get_significance(np.array([0.2, 0.2]), np.array([0.7]), 'bliss')
 # sig = Comb.old_fit_sum_likelihood(np.array([dose, dose]), np.array([0.7, 0.3]))
 print('The significance is: ', sig)
