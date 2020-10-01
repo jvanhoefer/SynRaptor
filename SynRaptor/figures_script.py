@@ -98,6 +98,11 @@ comb_responses = np.array([0.93339, 0.94425, 1.04891, 0.87357, 0.85792, 0.8815, 
 
 
 
+
+
+
+
+
 #insert drug names and cell line here:
 
 #drug_a_name = '5-FU'
@@ -110,6 +115,9 @@ comb_responses = np.array([0.93339, 0.94425, 1.04891, 0.87357, 0.85792, 0.8815, 
 #combination_name = 'AZD1775 & MK-8776'
 #combination_name = '5-FU & ABT-888'
 
+#drug_a_name = 'Zolinza'
+#drug_b_name = 'Temozolomide'
+#combination_name = 'Zolinza & Temozolomide'
 #here the drug and combination objects are created
 
 #drug_a = dct.create_drug(drug_a_name, cell_line)
@@ -133,13 +141,29 @@ comb_responses = np.array([0.93339, 0.94425, 1.04891, 0.87357, 0.85792, 0.8815, 
 #print('HSA:', comb.get_significance(dose_combination, comb_responses, 'hsa'))
 #print('Loewe:', comb.get_significance(dose_combination, comb_responses, 'loewe'))
 
+"""
+a = np.array([0.5])
 
+for j in range(100):
+    significances = np.zeros(16)
+
+    for i in range(16):
+        a_dose = comb_doses_a[4 * i]
+        b_dose = comb_doses_b[4 * i]
+        responses = [comb_responses[4 * i + j] for j in range(4)]
+
+        significances[i] = comb.get_significance(np.array([a_dose, b_dose]), responses, 'bliss')
+
+    np.append(a, significances)
+
+plt.hist(a)
+"""
 
 
 #here the null model predictions are plotted
 
 #figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'loewe', 'r')
-#figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'bliss', 'blue')
+figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'bliss', 'blue')
 #figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hsa', 'green')
 #figures.surface_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hand', 'yellow')
 
@@ -147,9 +171,14 @@ comb_responses = np.array([0.93339, 0.94425, 1.04891, 0.87357, 0.85792, 0.8815, 
 
 
 #figures.combination_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'loewe', 'r')
-figures.combination_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'bliss', 'blue')
+#figures.combination_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'bliss', 'blue')
 #figures.combination_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hsa', 'green')
 #figures.combination_plot(comb, comb_doses_a, comb_doses_b, comb_responses, 'hand', 'yellow')
+
+
+#print(comb.sum_significance(dose_combination, comb_responses, 'bliss'))
+
+
 
 comb_responses = np.array([1.093339, 1.094425, 1.04891, 1.087357, 0.085792, 0.08815, 0.082624,
                            0.079271, 0.066017, 0.063208, 0.066879, 0.065039, 0.061066, 0.056125,

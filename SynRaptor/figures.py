@@ -64,6 +64,7 @@ def surface_plot(comb: Combination,
 
     # fig, ax = plt.subplots()
     im = ax.imshow(np.log(significances))
+    #im = ax.imshow(significances)# TODO choose between log or linear scale
 
     # We want to show all ticks...
     ax.set_xticks(np.arange(len(a_labels)))

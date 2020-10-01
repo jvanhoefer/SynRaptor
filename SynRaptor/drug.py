@@ -411,7 +411,7 @@ class Drug:
                                  bounds[2][0] + (bounds[2][1] - bounds[2][0]) / n_starts * (perm_s[i] + 0.5)]
         return initial_values
 
-    def get_sigma2(self):#TODO monotone increasing vs decreasing
+    def get_sigma2(self):
         """
         Calculates the optimal sigma^2 through hierarchical optimization.
 
@@ -429,8 +429,13 @@ class Drug:
         x = self.dose_data
         y = self.response_data
         d = len(x)
-        for i in range(d):
-            sum += (s * x[i] ** n / (a ** n + x[i] ** n) - (self.control_response - y[i])) ** 2
+
+        if not self.monotone_increasing:
+            for i in range(d):
+                sum += (s * x[i] ** n / (a ** n + x[i] ** n) - (self.control_response - y[i])) ** 2
+        else:
+            for i in range(d):
+                sum += (s * x[i] ** n / (a ** n + x[i] ** n) - (y[i] - self.control_response)) ** 2
 
         return sum / d
 
