@@ -251,7 +251,9 @@ class Combination:
                                     range(l)]
             oneminusresponses = [1 - response_grad_matrix[i][0] for i in range(l)]
             prod = np.prod(oneminusresponses)
-            grad = [prod / (oneminusresponses[i]) * response_grad_matrix[i][1] for i in range(l)]
+
+            grad = - [prod / (oneminusresponses[i]) * response_grad_matrix[i][1] for i in range(l)]
+
             grad = self._matrix_to_vector(grad)  # now gradient looks like [a0 n0 s0 a1 n1 s1 ...]
             return 1 - prod, grad
         # For monotone decreasing drugs the Bliss response is prod(y_i)
@@ -458,8 +460,9 @@ class Combination:
 
         """
         if not gradient:
-            return np.sum([drug.evaluate_lsq_residual(drug.parameters, False)
-                           for drug in self.drug_list])
+            sum_of_residuals = np.sum([drug.evaluate_lsq_residual(drug.parameters, False)
+                                       for drug in self.drug_list])
+            return sum_of_residuals / self.sigma2
 
         else:
             number_of_drugs = len(self.drug_list)
@@ -518,7 +521,7 @@ class Combination:
         if gradient:
             (response, grad_prep) = get_combination_response(validation_doses, True, parameters)
             residual = (validation_responses_mean - response) ** 2 / (self.sigma2 / number_of_responses)
-            grad = 2 * (response - validation_responses_mean) * grad_prep
+            grad = 2/(self.sigma2 / number_of_responses) * (response - validation_responses_mean) * grad_prep
             return residual, grad
         else:
             return (validation_responses_mean - get_combination_response(validation_doses, False, parameters)) ** 2 /\
@@ -565,10 +568,10 @@ class Combination:
         bounds = numpy.matlib.repmat(np.array([(1e-8, 10), (1e-8, 20), (1e-8, 0.99)]), len(self.drug_list), 1)
 
         minimum_parameters = self._drug_list_to_parameters()
-        initial_parameters = self._get_optimizations_starts(((1e-8, 10), (1e-8, 20), (1e-8, 0.99)), 10)
+        # initial_parameters = self._get_optimizations_starts(((1e-8, 10), (1e-8, 20), (1e-8, 0.99)), 10)
 
         for i in range(10):
-            solution = minimize(min2loglikelihood, initial_parameters[i], args=null_model, method='TNC', jac=True,
+            solution = minimize(min2loglikelihood, minimum_parameters, args=null_model, method='TNC', jac=True,
                             bounds=bounds)
             if solution.fun < minimum_value:
                 print('kleiner geworden')
