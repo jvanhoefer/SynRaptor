@@ -570,13 +570,13 @@ class Combination:
         minimum_parameters = self._drug_list_to_parameters()
         # initial_parameters = self._get_optimizations_starts(((1e-8, 10), (1e-8, 20), (1e-8, 0.99)), 10)
 
-        for i in range(10):
-            solution = minimize(min2loglikelihood, minimum_parameters, args=null_model, method='TNC', jac=True,
-                            bounds=bounds)
-            if solution.fun < minimum_value:
-                print('kleiner geworden')
-                minimum_value = solution.fun
-                minimum_parameters = solution.x
+        #for i in range(10):
+        solution = minimize(min2loglikelihood, minimum_parameters, args=null_model, method='TNC', jac=True,
+                        bounds=bounds)
+        if solution.fun < minimum_value:
+            print('kleiner geworden')
+            minimum_value = solution.fun
+            minimum_parameters = solution.x
         #return minimum_parameters
         return minimum_value
 
