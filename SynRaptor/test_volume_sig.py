@@ -42,7 +42,28 @@ true_drug_b = drug.Drug(np.array([1]), np.array([1]), False, 1)
 true_drug_a.parameters = drug_a_parameters
 true_drug_b.parameters = drug_b_parameters
 
+# Combination data that stays the same
 
+comb_doses_a = np.array([0.35, 0.35, 0.35, 0.35, 0.35, 0.35, 0.35, 0.35, 0.35,
+                         0.35, 0.35, 0.35, 0.35, 0.35, 0.35, 0.35, 1.08, 1.08,
+                         1.08, 1.08, 1.08, 1.08, 1.08, 1.08, 1.08, 1.08, 1.08,
+                         1.08, 1.08, 1.08, 1.08, 1.08, 3.25, 3.25, 3.25, 3.25,
+                         3.25, 3.25, 3.25, 3.25, 3.25, 3.25, 3.25, 3.25, 3.25,
+                         3.25, 3.25, 3.25, 10., 10., 10., 10., 10., 10.,
+                         10., 10., 10., 10., 10., 10., 10., 10., 10.,
+                         10.])
+
+comb_doses_b = np.array([0.00011, 0.00011, 0.00011, 0.00011, 0.0005, 0.0005, 0.0005,
+                         0.0005, 0.00223, 0.00223, 0.00223, 0.00223, 0.01, 0.01,
+                         0.01, 0.01, 0.00011, 0.00011, 0.00011, 0.00011, 0.0005,
+                         0.0005, 0.0005, 0.0005, 0.00223, 0.00223, 0.00223, 0.00223,
+                         0.01, 0.01, 0.01, 0.01, 0.00011, 0.00011, 0.00011,
+                         0.00011, 0.0005, 0.0005, 0.0005, 0.0005, 0.00223, 0.00223,
+                         0.00223, 0.00223, 0.01, 0.01, 0.01, 0.01, 0.00011,
+                         0.00011, 0.00011, 0.00011, 0.0005, 0.0005, 0.0005, 0.0005,
+                         0.00223, 0.00223, 0.00223, 0.00223, 0.01, 0.01, 0.01,
+                         0.01])
+dose_combination = np.array([comb_doses_a, comb_doses_b])
 for i in range(number_of_iterations):
     init_drug = drug.Drug(None, None, False, 1)
 
@@ -60,24 +81,19 @@ for i in range(number_of_iterations):
     comb = Combination([drug_a, drug_b])
     get_combination_response = true_combination.combination_response(null_model)
 
-    # doses of drug a in combination ['0.35', '1.08', '3.25', '10.0']
-    # doses of drug b in combination ['0.00011', '0.0005', '0.00223', '0.01']
-
-    dose_combination = np.array([1.08, 0.0005])
-
     # create synthetic data
 
-    synthetic_data = [get_combination_response(dose_combination, False, None) +
-                      np.random.normal(loc=0.0, scale=np.sqrt(sigma2), size=None) for i in range(4)]
+    synthetic_data = [get_combination_response(dose_combination[:, i], False, None) +
+                      np.random.normal(loc=0.0, scale=np.sqrt(sigma2), size=None) for i in range(len(dose_combination))]
 
     # calculate significance
 
-    significance = comb.get_significance(dose_combination, synthetic_data, null_model)
+    significance = comb.volume_significance(dose_combination, synthetic_data, null_model)
 
     # create result array
     significances[i] = significance
 
-plt.title('Bliss Significance Synthetic Data Test', fontsize=25)
+plt.title('Bliss Volume Synthetic Data Test', fontsize=25)
 plt.xlabel('significance levels', fontsize=20)
 plt.ylabel('number of combinations', fontsize=20)
 

@@ -20,22 +20,22 @@ plot_drug(D: Drug):
 
 """
 
+
 def plot_responses(drug: drug):
     """
     Plots the dose and response data of a drug drug.
     """
     plt.figure('plot_responses')
-    #drug.dose_data.sort()
-    #drug.response_data.sort()# np.argsort
     plt.semilogx(drug.dose_data, drug.response_data, linestyle='None', marker='.')
 
-    #design
+    # design
     plt.title('dose response curve')
     plt.xlabel('dose')
     plt.ylabel('response')
     plt.show()
 
-def plot_parameters(drug: drug):#TODO monotone increasing
+
+def plot_parameters(drug: drug):  # TODO monotone increasing
     """
     Plots a Hill curve according to the parameters of a Drug drug.
     If drug does not have parameters yet, the parameters will be determined via drug.fit_parameters() and stored in drug
@@ -46,7 +46,7 @@ def plot_parameters(drug: drug):#TODO monotone increasing
     a = drug.parameters[0]
     n = drug.parameters[1]
     s = drug.parameters[2]
-    x = np.linspace(0, 2*a, 100)  # 100 values from 0 to 2*a, as a is the Half-Max of Hill curve.
+    x = np.linspace(0, 2 * a, 100)  # 100 values from 0 to 2*a, as a is the Half-Max of Hill curve.
     y = drug.control_response - s * x ** n / (a ** n + x ** n)
     plt.plot(x, y)
 
@@ -55,6 +55,7 @@ def plot_parameters(drug: drug):#TODO monotone increasing
     plt.ylabel('response')
     plt.title('Hill curve')
     plt.show()
+
 
 def plot_noise(drug: drug):
     """
@@ -69,7 +70,8 @@ def plot_noise(drug: drug):
     plt.figure('plot_noise')
     if drug.parameters is None:
         drug.fit_parameters(10)
-    #parameters_plot
+
+    # parameters_plot
     a = drug.parameters[0]
     n = drug.parameters[1]
     s = drug.parameters[2]
@@ -81,7 +83,7 @@ def plot_noise(drug: drug):
     noise_response(drug)
     plt.plot(drug.dose_data, drug.response_data, linestyle='None', marker='.', label='data')
 
-    #new parameters plot
+    # new parameters plot
     D.fit_parameters(10)
     a = drug.parameters[0]
     n = drug.parameters[1]
@@ -90,7 +92,7 @@ def plot_noise(drug: drug):
     y = drug.control_response + s * x ** n / (a ** n + x ** n)
     plt.plot(x, y, linestyle='--', label='fitted hill curve')
 
-    #design
+    # design
     plt.title('Hill curves')
     plt.xlabel('dose')
     plt.ylabel('response')
@@ -109,12 +111,12 @@ def noise_response(D: drug):
     D.response_data = y
 
 
-def plot_drug(D: drug, title: str = 'dose response curve'):#TODO monotone increasing
+def plot_drug(D: drug, title: str = 'dose response curve'):  # TODO monotone increasing
     """
     Plots the Hill curve according to parameters of Drug D and dose response data points of D.
     """
     plt.figure('plot_drug')
-    #parameters plot
+    # parameters plot
     if D.parameters is not None:
         a = D.parameters[0]
         n = D.parameters[1]
@@ -123,28 +125,13 @@ def plot_drug(D: drug, title: str = 'dose response curve'):#TODO monotone increa
         y = D.control_response - s * x ** n / (a ** n + x ** n)
         plt.plot(x, y, label='parameters')
 
-    #responses plot
-    #D.dose_data.sort()
-    #D.response_data.sort()#TODO numpy.argsort
+    # responses plot
     plt.plot(D.dose_data, D.response_data, linestyle='None', marker='.', label='responses')
 
-    #design
+    # design
     plt.title(title)
     plt.xlabel('dose')
     plt.ylabel('response')
     plt.legend
     plt.show()
-
-
-#The following may be used to test the functions:
-
-x = np.array([2,2.5,3,4,5])
-y = np.array([2,3,4,7,8])
-
-D = drug.Drug(x, y)
-
-#plot_responses(D)
-#plot_parameters(D)
-#plot_noise(D)
-#plot_drug(D)
 
