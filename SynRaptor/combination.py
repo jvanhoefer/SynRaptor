@@ -8,8 +8,6 @@ from scipy.integrate import odeint
 from scipy.optimize import minimize
 from scipy.stats import chi2
 
-from SynRaptor import drug
-
 
 class Combination:
     """
@@ -132,10 +130,12 @@ class Combination:
             parameters = [drug.parameters for drug in self.drug_list]
 
         if not np.any(dose_combination):
+
             if self.drug_list[0].monotone_increasing:
                 effect = 0
             else:
                 effect = 1
+
         else:
 
             def loewe_equation(effect):
@@ -146,59 +146,104 @@ class Combination:
                         range(number_of_drugs))
                 return s - 1
 
-            # TODO adapt starting point
-            effect = sp.optimize.bisect(loewe_equation, self.drug_list[0].control_response - 1e-4,
-                                        self.drug_list[0].parameters[2])
+            if self.drug_list[0].monotone_increasing:
+                a = self.drug_list[0].control_response + 1e-4
+                b = self.drug_list[0].control_response + np.min([drug.parameters[2] for drug in self.drug_list]) - 1e-4
+
+            else:
+                a = self.drug_list[0].control_response - 1e-4
+                b = self.drug_list[0].control_response - np.max([drug.parameters[2] for drug in self.drug_list]) + 1e-4
+
+            effect = sp.optimize.bisect(loewe_equation, a, b)
+
+            for i in range(len(self.drug_list)):
+
+                if (self.drug_list[i].parameters[2] - self.drug_list[i].control_response + effect) < 0:
+
+                    if gradient:
+                        return self.get_hsa_response(dose_combination, True, parameters)
+                    else:
+                        return self.get_hsa_response(dose_combination, False, parameters)
 
         if not gradient:
             return effect
 
         def get_parameters(i: int):
-            return self.drug_list[i].control_response, parameters[i][0], parameters[i][1], parameters[i][2]
+            a, n, s = parameters[i][0], parameters[i][1], parameters[i][2]
+            return a, n, s
+
+        def set_d(effect):
+            """
+            Calculates d = y - w_0 for monotone increasing and d = w_0 - y for monotone decreasing Hill curves.
+            """
+            if self.drug_list[0].monotone_increasing:
+                d = effect - self.drug_list[0].control_response
+            else:
+                d = self.drug_list[0].control_response - effect
+            return d
 
         def di_dy(y,
                   i: int):  # index of drug in drug_list
             """
             Calculates the derivative of 1/f_i^{-1}(y)
             """
-            w, a, n, s = get_parameters(i)
-            return - s * a ** n * (a ** n * (y - w) / (s + w - y)) ** (-1 / (n - 1)) / (n * (s + w - y) ** 2)
+            a, n, s = get_parameters(i)
+            d = set_d(y)
 
-        divFy = sum(dose_combination[i] * di_dy(effect, i) for i in range(number_of_drugs))  # calculates dF/dy
+            if (s - d) < 0:
+                return 0
+
+            if self.drug_list[0].monotone_increasing:
+                return - s * a ** n * (a ** n * d / (s - d)) ** (1 / (1 - n)) / (n * (s - d) ** 2)
+            else:
+                return s * a ** n * (a ** n * d / (s - d)) ** (1 / (1 - n)) / (n * (s - d) ** 2)
+
+        df_dy = sum(dose_combination[i] * di_dy(effect, i) for i in range(number_of_drugs))  # calculates dF/dy
 
         def dy_da_i(y,
                     i: int):
             """
             Calculates dy/da_i
             """
-            w, a, n, s = get_parameters(i)
-            return dose_combination[i] * (a ** n * (y - w) / (s + w - y)) ** (-1 / n) / a / divFy
+            a, n, s = get_parameters(i)
+            d = set_d(y)
+
+            if (s - d) < 0:
+                return 0
+
+            return dose_combination[i] * (a ** n * d / (s - d)) ** (-1 / n) / a / df_dy
 
         def dy_dn_i(y,
                     i: int):
             """
             Calculates dy/dn_i
             """
-            w, a, n, s = get_parameters(i)
-            if (y - w) / (s + w - y) < 0.00001:
-                if (y - w) / (s + w - y) > -0.00001:
+            a, n, s = get_parameters(i)
+            d = set_d(y)
+
+            if d / (s - d) < 0.00001:
+
+                if d / (s - d) > -0.00001:
                     raise RuntimeError('can not calculate log(0)')
                 return 0
-            if divFy < 0.0001:
-                if divFy > -0.0001:
+
+            if df_dy < 0.0001:
+
+                if df_dy > -0.0001:
                     raise RuntimeError('can not divide by zero')
                 return 0
 
-            return dose_combination[i] * ((y - w) / (s + w - y)) ** (-1 / n) * math.log((y - w) / (s + w - y)) / (
-                    a * n ** 2) / divFy  # a,n,w,s,y are positive
+            return - dose_combination[i] * (d / (s - d)) ** (-1 / n) * math.log(d / (s - d)) / (
+                    a * n ** 2) / df_dy  # a,n,w,s,y are positive
 
         def dy_ds_i(y,
                     i: int):
             """
             Calculates dy/ds_i
             """
-            w, a, n, s = get_parameters(i)
-            return dose_combination[i] * (a ** n * (y - w) / (s + w - y)) ** (-1 / n) / (n * (s + w - y)) / divFy
+            a, n, s = get_parameters(i)
+            d = set_d(y)
+            return - dose_combination[i] * (a ** n * d / (s - d)) ** (-1 / n) / (n * (s - d)) / df_dy
 
         grad = [np.array([dy_da_i(effect, i), dy_dn_i(effect, i), dy_ds_i(effect, i)]) for i in range(number_of_drugs)]
 
@@ -236,36 +281,40 @@ class Combination:
             the gradient
         """
 
-        l = len(dose_combination)
+        number_of_drugs = len(dose_combination)
+
         if parameters is None:
             parameters = [drug.parameters for drug in self.drug_list]
+
         self._check_bliss_requirements(parameters)
 
         # For monotone increasing drugs the Bliss response is 1-prod(1-y_i)
         if self.drug_list[0].monotone_increasing:
+
             if not gradient:
                 return 1 - np.prod(
-                    [1 - self.drug_list[i].get_response(dose_combination[i], parameters[i]) for i in range(l)])
+                    [1 - self.drug_list[i].get_response(dose_combination[i], parameters[i])
+                     for i in range(number_of_drugs)])
 
             response_grad_matrix = [self.drug_list[i].get_response(dose_combination[i], parameters[i], True) for i in
-                                    range(l)]
-            oneminusresponses = [1 - response_grad_matrix[i][0] for i in range(l)]
-            prod = np.prod(oneminusresponses)
+                                    range(number_of_drugs)]
+            one_minus_responses = [1 - response_grad_matrix[i][0] for i in range(number_of_drugs)]
+            prod = np.prod(one_minus_responses)
 
-            grad = - [prod / (oneminusresponses[i]) * response_grad_matrix[i][1] for i in range(l)]
-
+            grad = - [prod / (one_minus_responses[i]) * response_grad_matrix[i][1] for i in range(number_of_drugs)]
             grad = self._matrix_to_vector(grad)  # now gradient looks like [a0 n0 s0 a1 n1 s1 ...]
             return 1 - prod, grad
         # For monotone decreasing drugs the Bliss response is prod(y_i)
         else:
             if not gradient:
-                return np.prod([self.drug_list[i].get_response(dose_combination[i], parameters[i]) for i in range(l)])
+                return np.prod([self.drug_list[i].get_response(dose_combination[i], parameters[i]) for i in
+                                range(number_of_drugs)])
 
             response_grad_matrix = [self.drug_list[i].get_response(dose_combination[i], parameters[i], True) for i in
-                                    range(l)]
-            responses = [response_grad_matrix[i][0] for i in range(l)]
+                                    range(number_of_drugs)]
+            responses = [response_grad_matrix[i][0] for i in range(number_of_drugs)]
             prod = np.prod(responses)
-            grad = [prod / responses[i] * response_grad_matrix[i][1] for i in range(l)]
+            grad = [prod / responses[i] * response_grad_matrix[i][1] for i in range(number_of_drugs)]
             grad = self._matrix_to_vector(grad)  # now gradient looks like [a0 n0 s0 a1 n1 s1 ...]
             return prod, grad
 
@@ -287,6 +336,7 @@ class Combination:
         for i in range(len(self.drug_list)):
             if parameters[i][2] > 1:
                 raise RuntimeError('In bliss model parameter s should not be larger than 1')
+
         if self.drug_list[0].monotone_increasing:
             if not (self.drug_list[0].control_response == 0):
                 raise RuntimeError('For monotone increasing drugs in bliss model control response should be 0')
@@ -337,11 +387,12 @@ class Combination:
             right hand side of hand ODE
             """
             number_of_drugs = len(self.drug_list)
-
             r = 0
+
             for i in range(number_of_drugs):
                 drug_sensitivity = self.drug_list[i].sensitivity(y, parameters[i])
                 r += (dose_combination[i] / s) * drug_sensitivity
+
             return r
 
         # initial condition
@@ -352,9 +403,10 @@ class Combination:
         # timepoints
         t = np.array([0, s])
         # solve ode
-        sol = odeint(f, y0, t, args=(dose_combination,))
+        solution = odeint(f, y0, t, args=(dose_combination,))
+
         if not gradient:
-            return sol[-1][0]  # returns last element in array
+            return solution[-1][0]  # returns last element in array
         """
         gradient using finite differences
         """
@@ -362,29 +414,58 @@ class Combination:
         def fv(effect,
                t,
                dose_combination: np.array,
-               i: int,
                v: np.array):
 
             """
             ith summand of right hand side of hand ODE with changed parameters for finite differences
             """
+            r = 0
 
-            p = np.array([parameters[i][0] + v[0], parameters[i][1] + v[1], parameters[i][2] + v[2]])
-            drug_sensivity = self.drug_list[i].sensitivity(effect, p)
+            for i in range(len(self.drug_list)):
+                p = np.array([parameters[i][0] + v[i][0], parameters[i][1] + v[i][1], parameters[i][2] + v[i][2]])
+                for j in range(3):
+                    if p[j] < 0:
+                        p[j] = 1e-4
+                drug_sensitivity = self.drug_list[i].sensitivity(effect, p)
+                r += (dose_combination[i] / s) * drug_sensitivity
 
-            return (dose_combination[i] / s) * drug_sensivity
+            return r
+
+        # the gradient only works for two drugs
 
         grad = np.array([])
         for i in range(len(self.drug_list)):
             for j in range(3):
-                v = np.array([0, 0, 0])
-                v[j] = v[j] + 0.1
+                off = 0.1
 
-                y1 = odeint(fv, y0, t, args=(dose_combination, i, v))
-                y2 = odeint(fv, y0, t, args=(dose_combination, i, -v))
-                grad = np.append(grad, (y1[-1] - y2[-1]) / 0.2)
+                if parameters[i][j] < 2 * off:
+                    off = 0
 
-        return sol[-1][0], grad
+                if i == 0:
+                    if j == 0:
+                        v = np.array([[off, 0, 0], [0, 0, 0]])
+                    if j == 1:
+                        v = np.array([[0, off, 0], [0, 0, 0]])
+                    if j == 2:
+                        v = np.array([[0, 0, off], [0, 0, 0]])
+
+                if i == 1:
+                    if j == 0:
+                        v = np.array([[0, 0, 0], [off, 0, 0]])
+                    if j == 1:
+                        v = np.array([[0, 0, 0], [0, off, 0]])
+                    if j == 2:
+                        v = np.array([[0, 0, 0], [0, 0, off]])
+
+                y1 = odeint(fv, y0, t, args=(dose_combination, v))
+                y2 = odeint(fv, y0, t, args=(dose_combination, -v))
+
+                if not off == 0:
+                    grad = np.append(grad, (y1[-1][0] - y2[-1][0]) / (2 * off))
+                else:
+                    grad = np.append(grad, parameters[i][j])
+
+        return solution[-1][-1], grad
 
     def get_hsa_response(self,
                          dose_combination: np.array,
@@ -418,11 +499,12 @@ class Combination:
         grad: np.array
             gradient (partial derivatives)
         """
-        l = len(self.drug_list)
-        if parameters is None:
-            parameters = [self.drug_list[i].parameters for i in range(l)]
+        number_of_drugs = len(self.drug_list)
 
-        responses = [self.drug_list[i].get_response(dose_combination[i]) for i in range(l)]
+        if parameters is None:
+            parameters = [self.drug_list[i].parameters for i in range(number_of_drugs)]
+
+        responses = [self.drug_list[i].get_response(dose_combination[i]) for i in range(number_of_drugs)]
 
         if self.drug_list[0].monotone_increasing:
             hsa = np.argmax(responses)
@@ -430,9 +512,9 @@ class Combination:
             hsa = np.argmin(responses)
 
         if gradient:
-            (response, gradm) = self.drug_list[hsa].get_response(dose_combination[hsa], parameters[hsa], True)
-            grad = np.zeros((l, 3))
-            grad[hsa] = gradm
+            (response, grad_of_hsa) = self.drug_list[hsa].get_response(dose_combination[hsa], parameters[hsa], True)
+            grad = np.zeros((number_of_drugs, 3))
+            grad[hsa] = grad_of_hsa
             return response, self._matrix_to_vector(grad)
         else:
             return responses[hsa]
@@ -453,10 +535,10 @@ class Combination:
 
         Returns
         -------
-        loglikelihood: float
+        log-likelihood: float
 
         grad: np.array
-            gradient of loglikelihood
+            gradient of log-likelihood
 
         """
         if not gradient:
@@ -494,7 +576,7 @@ class Combination:
             dose of validation experiment
 
         gradient: bool
-            determines wether gradient should be returned as well
+            determines whether gradient should be returned as well
 
         parameters: np.array = None
             parameters for drugs
@@ -503,6 +585,7 @@ class Combination:
             null_model that is used
 
         number_of_responses: int
+            the number of validation responses
 
         Returns
         -------
@@ -521,11 +604,11 @@ class Combination:
         if gradient:
             (response, grad_prep) = get_combination_response(validation_doses, True, parameters)
             residual = (validation_responses_mean - response) ** 2 / (self.sigma2 / number_of_responses)
-            grad = 2/(self.sigma2 / number_of_responses) * (response - validation_responses_mean) * grad_prep
+            grad = 2 / (self.sigma2 / number_of_responses) * (response - validation_responses_mean) * grad_prep
             return residual, grad
         else:
-            return (validation_responses_mean - get_combination_response(validation_doses, False, parameters)) ** 2 /\
-                    (self.sigma2 / number_of_responses)
+            return (validation_responses_mean - get_combination_response(validation_doses, False, parameters)) ** 2 / \
+                   (self.sigma2 / number_of_responses)
 
     def fit_to_full_data(self,
                          validation_responses_mean: float,
@@ -550,34 +633,43 @@ class Combination:
         number_of_responses: int
             the number of validation responses
 
+        minimum_value: float
+            result before optimization
+
         Returns
         -------
-        solution.fun: float
+        minimum_value: float
               minimal value of -2LL for given data
         """
+        gradient = True
 
         def min2loglikelihood(parameters: np.array,  # parameters is array of length 3 * len(drug_list)
                               null_model: str):
             parameters = self._vector_to_matrix(parameters)
-            (r1, grad1) = self.evaluate_rss_single_drug_data(parameters, True)
-            (r2, grad2) = self.evaluate_validation_residual(validation_responses_mean, validation_doses, True,
-                                                            parameters,
-                                                            null_model, number_of_responses)
-            return r1 + r2, grad1 + grad2
 
-        bounds = numpy.matlib.repmat(np.array([(1e-8, 10), (1e-8, 20), (1e-8, 0.99)]), len(self.drug_list), 1)
+            if gradient:
+                (r1, grad1) = self.evaluate_rss_single_drug_data(parameters, True)
+                (r2, grad2) = self.evaluate_validation_residual(validation_responses_mean, validation_doses, True,
+                                                                parameters,
+                                                                null_model, number_of_responses)
+                return r1 + r2, grad1 + grad2
+            else:
+                r1 = self.evaluate_rss_single_drug_data(parameters, False)
+                r2 = self.evaluate_validation_residual(validation_responses_mean, validation_doses, False,
+                                                       parameters,
+                                                       null_model, number_of_responses)
+            return r1 + r2
+
+        bounds = numpy.matlib.repmat(np.array([(1e-4, 10), (1e-4, 20), (1e-4, 0.99)]), len(self.drug_list), 1)
 
         minimum_parameters = self._drug_list_to_parameters()
-        # initial_parameters = self._get_optimizations_starts(((1e-8, 10), (1e-8, 20), (1e-8, 0.99)), 10)
 
-        #for i in range(10):
-        solution = minimize(min2loglikelihood, minimum_parameters, args=null_model, method='TNC', jac=True,
-                        bounds=bounds)
+        solution = minimize(min2loglikelihood, minimum_parameters, args=null_model, method='TNC', jac=gradient,
+                            bounds=bounds)
+
         if solution.fun < minimum_value:
-            print('kleiner geworden')
             minimum_value = solution.fun
-            minimum_parameters = solution.x
-        #return minimum_parameters
+
         return minimum_value
 
     def _matrix_to_vector(self,
@@ -600,44 +692,10 @@ class Combination:
         """
         number_of_drugs = len(self.drug_list)
         parameters = np.nan * np.ones(3 * number_of_drugs)
+
         for i in range(number_of_drugs):
             parameters[3 * i: 3 * i + 3] = self.drug_list[i].parameters
         return parameters
-
-    def _get_optimizations_starts(self,
-                                  bounds: tuple,
-                                  n_starts: int = 10):
-        """Samples initial values in the bounds via Latin Hypercube sampling.
-
-        Parameters
-        ----------
-        bounds: tuple
-            the bounds in which sampled values should be
-
-        n_starts: int
-            number of sampled values
-
-        Returns
-        -------
-        initialValues:
-            initialValues for parameter optimization
-        """
-        initial_values = [[0] * 3 for i in range(n_starts)]
-        perm_a = np.random.permutation(n_starts)
-        perm_n = np.random.permutation(n_starts)
-        perm_s = np.random.permutation(n_starts)
-        perm_a2 = np.random.permutation(n_starts)
-        perm_n2 = np.random.permutation(n_starts)
-        perm_s2 = np.random.permutation(n_starts)
-        for i in range(n_starts):
-            initial_values[i] = [bounds[0][0] + (bounds[0][1] - bounds[0][0]) / n_starts * (perm_a[i] + 0.5),
-                                 bounds[1][0] + (bounds[1][1] - bounds[1][0]) / n_starts * (perm_n[i] + 0.5),
-                                 bounds[2][0] + (bounds[2][1] - bounds[2][0]) / n_starts * (perm_s[i] + 0.5),
-                                 bounds[0][0] + (bounds[0][1] - bounds[0][0]) / n_starts * (perm_a2[i] + 0.5),
-                                 bounds[1][0] + (bounds[1][1] - bounds[1][0]) / n_starts * (perm_n2[i] + 0.5),
-                                 bounds[2][0] + (bounds[2][1] - bounds[2][0]) / n_starts * (perm_s2[i] + 0.5)]
-
-        return initial_values
 
     def combination_response(self,
                              null_model: str = 'bliss'):
@@ -667,17 +725,17 @@ class Combination:
 
         return get_combination_response
 
-    def old_fit_sum_likelihood(self,
-                               dose_combination,
-                               combination_responses,
-                               parameters: np.array = None,
-                               null_model: str = 'bliss',
-                               gradient_flag: bool = False):
+    def old_fit_volume_likelihood(self,
+                                  dose_combination,
+                                  combination_responses,
+                                  parameters: np.array = None,
+                                  null_model: str = 'bliss',
+                                  gradient_flag: bool = False):
         """
-        Calculates the likelihood using the sum statistic regarding the drug parameters fitted from single drug data.
+        Calculates the likelihood using the volume statistic regarding the drug parameters fitted from single drug data.
 
-        The sum statistic means that we want to minimize the sum of measurement - prediction. Hence, we approximate the
-        volume between the measurement plane and the prediction plane.
+        The sum statistic means that we want to minimize the sum of validation_measurement - prediction. Hence, we
+        approximate the volume between the measurement plane and the prediction plane.
 
         Parameters
         ----------
@@ -694,7 +752,7 @@ class Combination:
             the chosen null model
 
         gradient_flag: bool
-            determines wether gradient should be returned as well
+            determines whether gradient should be returned as well
 
         Returns
         -------
@@ -705,58 +763,49 @@ class Combination:
             the gradient of the likelihood
 
         """
-
         if parameters is None:
             parameters = [drug.parameters for drug in self.drug_list]
+
         parameters_matrix = self._vector_to_matrix(parameters)
-        sum_of_responses = np.sum([np.sum(drug.response_data) for drug in self.drug_list])
-        #        sum_of_predictions = np.sum(
-        #            [self.drug_list[i].get_multiple_responses(self.drug_list[i].dose_data, parameters_matrix[i])
-        #             for i in range(len(self.drug_list))])
-        sum_of_predictions = 0
-        for i in range(len(Comb.drug_list)):
-            sum_of_predictions += np.sum(
-                Comb.drug_list[i].get_multiple_responses(Comb.drug_list[i].dose_data, parameters_matrix[i]))
-
         get_combination_response = self.combination_response(null_model)
-
         number_of_validation_points = len(combination_responses)
+        sum_of_comb_predictions = 0
+        sum_of_comb_responses = 0
 
-        for i in range(number_of_validation_points):
-            combination_prediction = get_combination_response(dose_combination[:, i], False, parameters_matrix)
-            sum_of_predictions += combination_prediction
-
-        sum_of_responses += np.sum(combination_responses)
-
-        number_of_datapoints = np.sum(
-            [len(drug.dose_data) for drug in self.drug_list]) + number_of_validation_points
-        likelihood = (sum_of_responses - sum_of_predictions) ** 2 / (number_of_datapoints * self.sigma2)
+        sum_of_comb_responses += np.sum(combination_responses)
 
         if not gradient_flag:
+            for i in range(number_of_validation_points):
+                combination_prediction = get_combination_response(dose_combination[:, i], False, parameters_matrix)
+                sum_of_comb_predictions += combination_prediction
+
+            single_drug_residual = self.evaluate_rss_single_drug_data(parameters_matrix, False)
+            likelihood = (sum_of_comb_responses - sum_of_comb_predictions) ** 2 / \
+                         (number_of_validation_points * self.sigma2) + single_drug_residual
+
             return likelihood
 
         else:
-            sum_of_gradients = np.array([])
-            for i in range(len(self.drug_list)):
-                sum_of_grad_i = 0
-                for j in range(len(self.drug_list[i].dose_data)):
-                    (res, grad) = self.drug_list[i].get_response(self.drug_list[i].dose_data[j], None, True)
-                    sum_of_grad_i += grad
-                sum_of_gradients = np.append(sum_of_gradients, sum_of_grad_i)
+            sum_of_gradients = np.zeros(3 * len(self.drug_list))
+            single_drug_residual, grad_single_drugs = self.evaluate_rss_single_drug_data(parameters_matrix, True)
+            likelihood = (sum_of_comb_responses - sum_of_comb_predictions) ** 2 / \
+                         (number_of_validation_points * self.sigma2) + single_drug_residual
 
             for i in range(number_of_validation_points):
-                (combination_prediction, grad) = get_combination_response(dose_combination[:, i], True,
-                                                                          parameters_matrix)
-                sum_of_gradients += grad
+                (combination_prediction, grad_comb_i) = get_combination_response(dose_combination[:, i], True,
+                                                                                 parameters_matrix)
+                sum_of_comb_predictions += combination_prediction
+                sum_of_gradients += grad_comb_i
 
-            gradient = - 2 / (number_of_datapoints * self.sigma2) * (
-                    sum_of_responses - sum_of_predictions) * sum_of_gradients
+            gradient = - 2 / (number_of_validation_points * self.sigma2) * (
+                    sum_of_comb_responses - sum_of_comb_predictions) * sum_of_gradients + grad_single_drugs
+
             return likelihood, gradient
 
-    def new_fit_sum_likelihood(self,
-                               dose_combination,
-                               combination_responses,  # only implemented for one response
-                               null_model: str = 'bliss'):
+    def new_fit_volume_likelihood(self,
+                                  dose_combination,
+                                  combination_responses,  # only implemented for one response
+                                  null_model: str = 'bliss'):
         """
         Optimizes the sum likelihood.
 
@@ -779,25 +828,25 @@ class Combination:
 
         def min2loglikelihood(parameters: np.array,  # parameters is array of length 3 * len(drug_list)
                               null_model: str):
-            return self.old_fit_sum_likelihood(dose_combination, combination_responses, parameters, null_model, True)
+            return self.old_fit_volume_likelihood(dose_combination, combination_responses, parameters, null_model)
+
 
         bounds = numpy.matlib.repmat(np.array([(1e-8, 10), (1e-8, 10), (1e-8, 0.99)]), len(self.drug_list), 1)
-
         initial_parameters = self._drug_list_to_parameters()
-        solution = minimize(min2loglikelihood, initial_parameters, args=null_model, method='TNC', jac=True,
+        solution = minimize(min2loglikelihood, initial_parameters, args=null_model, method='TNC', jac=False,
                             bounds=bounds)
         return solution.fun
 
-    def sum_significance(self,
-                         dose_combinations,
-                         responses,
-                         null_model: str = 'bliss'):
+    def volume_significance(self,
+                            dose_combinations,
+                            responses,
+                            null_model: str = 'bliss'):
         """
         Computes the significance level for a given dose and measurement and null model using the sum statistic.
 
         Parameters
         ----------
-        dose_combination: np.array
+        dose_combinations: np.array
             dose of validation experiments
 
         responses: np.array
@@ -811,9 +860,9 @@ class Combination:
         chi2: float
             significance level
         """
-        difference = self.old_fit_sum_likelihood(dose_combinations, responses, None, null_model) - \
-                     self.new_fit_sum_likelihood(dose_combinations, responses, null_model)
-
+        old = self.old_fit_volume_likelihood(dose_combinations, responses, None, null_model)
+        new = self.new_fit_volume_likelihood(dose_combinations, responses, null_model)
+        difference = old - new
         return chi2.sf(difference, 1, loc=0, scale=1)
 
     def get_significance(self,
@@ -857,36 +906,8 @@ class Combination:
         rss_yz_yz = self.fit_to_full_data(responses, dose_combination, null_model, number_of_responses, rss_y_yz)
 
         difference = rss_y_yz - rss_yz_yz
-        print('theta_y: ', theta_y, ' rss_y_y: ', rss_y_y, ' rss_y_yz: ', rss_y_yz, ' rss_yz_yz: ', rss_yz_yz,
-              ' difference: ', difference)
         sig = chi2.sf(difference, 1, loc=0, scale=1)
-        print('sig: ', sig, ' difference: ', difference)
         return sig
-
-    def get_sig_new(self,
-                    dose_combination: np.array,
-                    responses: np.array,
-                    null_model: str = 'bliss'):
-
-        if isinstance(responses, float):
-            number_of_responses = 1
-        else:
-            number_of_responses = len(responses)
-
-        responses = np.mean(responses)
-
-
-        theta_y = [drug.parameters for drug in self.drug_list]
-        rss_y_y = self.evaluate_rss_single_drug_data(theta_y, False)
-        rss_y_yz = rss_y_y + self.evaluate_validation_residual(responses, dose_combination, False,
-                                                               self._vector_to_matrix(theta_y), null_model,
-                                                               number_of_responses)
-        theta_yz = self.fit_to_full_data(responses, dose_combination, null_model, number_of_responses, rss_y_yz)
-        rss_yz_y = self.evaluate_rss_single_drug_data(theta_yz, False)
-
-        difference = rss_yz_y - rss_y_y
-
-        return chi2.sf(difference, 1, loc=0, scale=1)
 
     def _check_drug_consistency(self,
                                 drug_list: list) -> bool:
@@ -895,13 +916,14 @@ class Combination:
         check, if all drugs share the same w_0 ...
         If yes return True, if not return False.
         """
-        l = len(drug_list)
-        control_response = drug_list[l - 1].control_response
-        mon = drug_list[l - 1].monotone_increasing
-        for i in range(l - 1):
+        number_of_drugs = len(drug_list)
+        control_response = drug_list[number_of_drugs - 1].control_response
+        monotony_flag = drug_list[number_of_drugs - 1].monotone_increasing
+
+        for i in range(number_of_drugs - 1):
             if not (drug_list[i].control_response == control_response):
                 return False
-            if not (drug_list[i].monotone_increasing == mon):
+            if not (drug_list[i].monotone_increasing == monotony_flag):
                 return False
         return True
 
@@ -910,26 +932,9 @@ class Combination:
         Compute the (optimal) sigma for the given drugs in drug_list using hierarchical optimization.
 
         """
-        l = len(self.drug_list)
-        sum = 0
-        for i in range(l):
-            sum += self.drug_list[i].get_sigma2()
-        self.sigma2 = sum / l
+        number_of_drugs = len(self.drug_list)
+        sum_of_variances = 0
+        for i in range(number_of_drugs):
+            sum_of_variances += self.drug_list[i].get_sigma2()
+        self.sigma2 = sum_of_variances / number_of_drugs
         return
-
-
-dose = np.array([0.2, 0.7])
-response = np.array([0.73, 0.35])
-A = drug.Drug(dose, response, False, 1)
-B = drug.Drug(response, dose, False, 1)
-A.fit_parameters()
-B.fit_parameters()
-print('A.parameters: ', A.parameters)
-print('B.parameters: ', B.parameters)
-
-Comb = Combination([A, B])
-res = Comb.get_bliss_response(dose, False)
-# sig = Comb.get_sig_new(np.array([[0.2], [0.2]]), np.array([0.7]), 'bliss')
-sig = Comb.get_significance(np.array([0.2, 0.2]), np.array([0.7]), 'bliss')
-# sig = Comb.old_fit_sum_likelihood(np.array([dose, dose]), np.array([0.7, 0.3]))
-print('The significance is: ', sig)

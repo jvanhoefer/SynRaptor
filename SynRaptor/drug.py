@@ -95,7 +95,6 @@ class Drug:
 
         if dose_data is not None and response_data is not None:
             self._set_dose_and_response(dose_data, response_data)
-            # self._set_monotony()
 
     def get_response(self,
                      dose: float,
@@ -128,26 +127,30 @@ class Drug:
 
         if parameters is None:
             parameters = self.parameters
-        monotone_increasing = self.monotone_increasing
-        control_response = self.control_response
 
         a = parameters[0]
         n = parameters[1]
         s = parameters[2]
-        if monotone_increasing:
-            response_value: float = control_response + s * dose ** n / (a ** n + dose ** n)
+
+        if self.monotone_increasing:
+            response_value: float = self.control_response + s * dose ** n / (a ** n + dose ** n)
         else:
-            response_value: float = control_response - s * dose ** n / (a ** n + dose ** n)
+            response_value: float = self.control_response - s * dose ** n / (a ** n + dose ** n)
+
         if not gradient:
             return response_value
+
         if dose == 0:
             return response_value, np.array([0.001, 0.001, 0.001])
+
         grad = np.array([np.nan, np.nan, np.nan])
         grad[0] = -s * dose ** n * a ** (n - 1) * n / ((a ** n + dose ** n) ** 2)
         grad[1] = a ** n * s * dose ** n * math.log(dose / a) / ((a ** n + dose ** n) ** 2)
         grad[2] = dose ** n / (a ** n + dose ** n)
-        if not monotone_increasing:
+
+        if not self.monotone_increasing:
             grad = -grad
+
         return response_value, grad
 
     def get_derivative(self,
@@ -175,11 +178,11 @@ class Drug:
         """
         if parameters is None:
             parameters = self.parameters
-        monotone_increasing = self.monotone_increasing
+
         a = parameters[0]
         n = parameters[1]
         s = parameters[2]
-        if monotone_increasing:
+        if self.monotone_increasing:
             derivative: float = n * s * a ** n * dose ** (n - 1) / (a ** n + dose ** n) ** 2
         else:
             derivative: float = - n * s * a ** n * dose ** (n - 1) / (a ** n + dose ** n) ** 2
@@ -210,8 +213,9 @@ class Drug:
         if parameters is None:
             parameters = self.parameters
 
-        # for increasing
+        # for increasing Hill curves
         if self.monotone_increasing:
+
             if effect < self.control_response:
                 return float('-inf')
             elif effect > self.control_response + parameters[2]:
@@ -219,11 +223,12 @@ class Drug:
 
             return ((effect - self.control_response) * parameters[0] ** parameters[1] /
                     (parameters[2] - effect + self.control_response)) ** (1 / parameters[1])
-        # for decreasing
+
+        # for decreasing Hill curves
         else:
-            if effect > self.control_response:
+            if not effect < self.control_response:
                 return float('-inf')
-            elif effect < self.control_response - parameters[2]:
+            elif not effect > self.control_response - parameters[2]:
                 return float('inf')
 
             return ((self.control_response - effect) /
@@ -253,10 +258,19 @@ class Drug:
         if parameters is None:
             parameters = self.parameters
 
-        if effect > self.control_response:
-            return 0
-        elif effect < self.control_response - parameters[2]:
-            return 0
+        if self.monotone_increasing:
+
+            if effect < self.control_response:
+                return 0
+            elif effect > self.control_response + parameters[2]:
+                return 0
+
+        else:
+
+            if not effect < self.control_response:
+                return 0
+            elif not effect > self.control_response - parameters[2]:
+                return 0
 
         return self.get_derivative(self.inverse_evaluate(effect, parameters), parameters)
 
@@ -291,16 +305,23 @@ class Drug:
             gradients of hill curve at doses doses
 
           """
-        l = len(doses)
-        responses = np.nan * np.ones(l)
+        number_of_doses = len(doses)
+        responses = np.nan * np.ones(number_of_doses)
+
         if not gradient:
-            for i in range(l):
+
+            for i in range(number_of_doses):
                 responses[i] = self.get_response(doses[i], parameters, False)
+
             return responses
-        grad = np.nan * np.ones((l, 3))
-        for i in range(l):
+
+        grad = np.nan * np.ones((number_of_doses, 3))
+
+        for i in range(number_of_doses):
             (responses[i], grad[i]) = self.get_response(doses[i], parameters, True)
+
         grad = np.transpose(grad)
+
         return responses, grad
 
     def evaluate_lsq_residual(self,
@@ -331,18 +352,22 @@ class Drug:
 
         """
         lsq_residual = 0
+
         if not gradient:
             responses = self.get_multiple_responses(self.dose_data, parameters)
+
             for i in range(len(self.response_data)):
                 lsq_residual += (self.response_data[i] - responses[i]) ** 2
-            lsq_residual = lsq_residual
+
             return lsq_residual
 
         (responses, responses_grad) = self.get_multiple_responses(self.dose_data, parameters, True)
+
         for i in range(len(self.response_data)):
             lsq_residual += (self.response_data[i] - responses[i]) ** 2
-        lsq_residual = lsq_residual
+
         grad = np.dot(responses_grad, 2 * (responses - self.response_data))
+
         return lsq_residual, grad
 
     def fit_parameters(self,
@@ -368,18 +393,18 @@ class Drug:
         def lsq(parameters):
             return self.evaluate_lsq_residual(parameters, True)
 
-        bounds = ((np.min(self.dose_data), np.max(self.dose_data)),
-                  (1, 20),
-                  (1e-6, 1))
+        bounds = ((np.min(self.dose_data), np.max(self.dose_data)), (1, 20), (1e-6, 1))
         initial_values = self._get_optimizations_starts(bounds, n_starts)
-
         minimum_value = float('inf')
         minimum_parameters = None
+
         for i in range(n_starts):
             solution = minimize(lsq, initial_values[i], method='TNC', jac=True, bounds=bounds)
+
             if solution.fun < minimum_value:
                 minimum_value = solution.fun
                 minimum_parameters = solution.x
+
         self.parameters = minimum_parameters
         return minimum_parameters
 
@@ -405,6 +430,7 @@ class Drug:
         perm_a = np.random.permutation(n_starts)
         perm_n = np.random.permutation(n_starts)
         perm_s = np.random.permutation(n_starts)
+
         for i in range(n_starts):
             initial_values[i] = [bounds[0][0] + (bounds[0][1] - bounds[0][0]) / n_starts * (perm_a[i] + 0.5),
                                  bounds[1][0] + (bounds[1][1] - bounds[1][0]) / n_starts * (perm_n[i] + 0.5),
@@ -422,30 +448,18 @@ class Drug:
         sum / d: float
             the optimal sigma^2
         """
-        sum = 0
-        a = self.parameters[0]
-        n = self.parameters[1]
-        s = self.parameters[2]
-        x = self.dose_data
-        y = self.response_data
-        d = len(x)
+        sum_of_residuals = 0
 
-        if not self.monotone_increasing:
-            for i in range(d):
-                sum += (s * x[i] ** n / (a ** n + x[i] ** n) - (self.control_response - y[i])) ** 2
-        else:
-            for i in range(d):
-                sum += (s * x[i] ** n / (a ** n + x[i] ** n) - (y[i] - self.control_response)) ** 2
+        for i in range(len(self.dose_data)):
+            sum_of_residuals += (self.get_response(self.dose_data[i], None, False) - self.response_data[i]) ** 2
 
-        return sum / d
+        return sum_of_residuals / len(self.dose_data)
 
     def _set_dose_and_response(self,
                                dose_data: np.array,
                                response_data: np.array):
         """
         sets dose and response data. Checks dimensions
-
-
 
         """
 
@@ -459,10 +473,10 @@ class Drug:
         """
         sets monotone_increasing flag of drug
         """
-        max = np.argmax(self.response_data)
-        min = np.argmin(self.response_data)
+        index_of_max = np.argmax(self.response_data)
+        index_of_min = np.argmin(self.response_data)
 
-        if self.response_data[min] < self.response_data[max]:
+        if self.response_data[index_of_min] < self.response_data[index_of_max]:
             self.monotone_increasing = True
         else:
             self.monotone_increasing = False
