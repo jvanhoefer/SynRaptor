@@ -63,7 +63,7 @@ class Combination:
     new_fit_sum_likelihood:
         optimizes the sum likelihood
 
-    sum_significance:
+    volume_significance:
         computes the significance level for a given dose and measurement and null model using the sum statistic
 
     get_significance:
