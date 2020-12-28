@@ -179,3 +179,6 @@ class TestDrug(unittest.TestCase):
 
         self.assertAlmostEqual(synthetic_response,
                                test_drug.get_multiple_responses(doses))
+
+
+class T
