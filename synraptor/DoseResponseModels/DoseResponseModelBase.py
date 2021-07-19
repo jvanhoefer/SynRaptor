@@ -1,13 +1,17 @@
 import abc
 import numpy as np
+import warnings
+from typing import List
+
 import pypesto
 import pypesto.optimize as optimize
+import pypesto.sample as sample
 
 
 class DoseResponseModelBase(abc.ABC):
     """
-    A DoseResponseModel stores a parametric representation of a dose response curve
-    together with dose response data.
+    A DoseResponseModel stores a parametric representation of a dose response
+    curve together with dose response data.
 
     Attributes
     ----------
@@ -25,15 +29,14 @@ class DoseResponseModelBase(abc.ABC):
         flag, indicating if the curve is monotone increasing
 
     control_response: float
-        response for zero dose (in the upper formula: w_0)
+        response of the control experiment with dose zero
 
-    Methods
-    -------
+    lb: np.array
+        lower bound of the model parameters.
 
-    DoseResponseModel: DoseResponseModel
-        Constructor
+    ub: np.array
+        upper bound of the model parameters.
 
-    # Docu TODO
     """
 
     def __init__(self,
@@ -42,27 +45,58 @@ class DoseResponseModelBase(abc.ABC):
                  monotone_increasing: bool = True,
                  control_response: float = 0,
                  lb: np.array = None,
-                 ub: np.array = None):
+                 ub: np.array = None,
+                 parameter_names: List[str] = None):
         """
         Constructor
         """
 
         self.parameters = None
-        self._n_parameters: int = None
+        self.n_parameters: int = None
 
         self.monotone_increasing = monotone_increasing
         self.control_response = control_response
 
-        self.lb = lb
-        self.ub = ub
-        self.pypesto_result = None
+        # set dose-response data:
 
         if dose_data is not None and response_data is not None:
+
             self._set_dose_and_response(dose_data, response_data)
-            self._set_fitting_problem()
-        else:
+
+        elif (dose_data is not None) is not (response_data is not None):
+
+            warnings.warn("Only one of dose_data and response_data is "
+                          "provided. Therefore this is neglected.")
+
             self.dose_data = None
             self.response_data = None
+
+        else:
+
+            self.dose_data = None
+            self.response_data = None
+
+        # set bounds
+        if lb is not None:
+            self.lb = lb
+        else:
+            self.lb = self._get_default_parameter_bounds()[0]
+
+        if ub is not None:
+            self.ub = ub
+        else:
+            self.ub = self._get_default_parameter_bounds()[1]
+
+        self.pypesto_result: pypesto.result = None
+        self.n_samples: int = 0
+
+        self._set_fitting_problem(parameter_names=parameter_names)
+
+    @property
+    def has_samples(self):
+        """Returns True, if the drug got sampled, False otherwise.
+        (Samples are stored in self.pypesto_result.sample_result`)"""
+        return self.n_samples > 0
 
     @abc.abstractmethod
     def get_response(self,
@@ -70,13 +104,20 @@ class DoseResponseModelBase(abc.ABC):
                      parameters: np.array = None,
                      gradient: bool = False):
         """
-        dose -> Dose
-        parameters -> parameters, if none use the parameters from the DoseResponseModel
-        gradient -> if True, you also return the gradient...
+        Computes the response of the dose response model.
+        If `gradient==True`, the gradient is returned as well.
+
+        Parameters:
+        -----------
+        dose: float
+            Drug Dose
+
+        parameters: np.array
+            Parameters. If none are provided, self.parameters is used.
+
+        gradient: bool
+            If `gradient==True`, the gradient is returned as second result.
         """
-        # gives single dose response,
-        #
-        # TODO: Docu, implement
         raise NotImplementedError
 
     def get_multiple_responses(self,
@@ -84,15 +125,24 @@ class DoseResponseModelBase(abc.ABC):
                                parameters: np.array = None,
                                gradient: bool = False):
         """
-        dose -> Dose
-        parameters -> parameters, if none use the parameters from the DoseResponseModel
-        gradient -> if True, you also return the gradient...
+        Similar to get_response, but for multiple doses
+
+
+        Parameters:
+        -----------
+        doses: np.array
+            Array of doses.
+
+        parameters: np.array
+            Parameters. If none are provided, self.parameters is used.
+
+        gradient: bool
+            If `gradient==True`, the gradient is returned as second result.
         """
-        # TODO: Docu
         if gradient:
 
             responses = np.nan * np.ones_like(doses)
-            gradients = np.nan * np.ones((self._n_parameters, doses.size))
+            gradients = np.nan * np.ones((self.n_parameters, doses.size))
 
             for i in range(doses.size):
                 responses[i], gradients[:, i] \
@@ -106,16 +156,37 @@ class DoseResponseModelBase(abc.ABC):
                              for d in doses])
 
     def evaluate_lsq_residual(self,
-                              parameters: np.array,
-                              gradient: bool):
-        # TODO Docu
-        if not self.response_data:
-            raise RuntimeError("Drug is missing response data. Therefore the LSQ residual can not be computed.")
+                              parameters: np.array = None,
+                              gradient: bool = False):
+        r"""
+        Evaluates the Least Squares Residual $\sum_{x_i} (f(x_i)-d_i)^2$.
+        If `gradient==True`, the gradient is returned as second result.
+
+
+        Parameters:
+        -----------
+        parameters: np.array
+            Parameters. If none are provided, self.parameters is used.
+
+        gradient: bool
+            If `gradient==True`, the gradient is returned as second result.
+        """
+        if self.response_data is None:
+            raise RuntimeError("Drug is missing response data. "
+                               "Therefore the residual can not be computed.")
+
+        if parameters is None:
+            if self.parameters is None:
+                raise ValueError("Drug must have parameters, if no parameters "
+                                 "are provided to evaluate_lsq_residual.")
+            parameters = self.parameters
 
         if gradient:
-            responses, gradients = self.get_multiple_responses(self.dose_data,
-                                                               parameters=parameters,
-                                                               gradient=True)
+            responses, gradients = \
+                self.get_multiple_responses(self.dose_data,
+                                            parameters=parameters,
+                                            gradient=True)
+
             residuals = responses - self.response_data
 
             return np.sum(residuals**2), 2 * np.dot(gradients, residuals)
@@ -127,27 +198,44 @@ class DoseResponseModelBase(abc.ABC):
             return np.sum(residuals**2)
 
     def fit_parameters(self,
-                       optimizer: 'optimize.optimizer' = None,
                        n_starts: int = 10,
-                       paral_fitting: bool = False,
-                       store_optimizer_output: bool = False):
-        # Fit the data (LSQ here...), here you can use scipy optimizers...
-        # Store the parameters as self.parameters afterwards
-        # TRY TO GET THIS AS FAST AS POSSIBLE, WILL BE CALLED THOUSANDS OF TIMES!!!
+                       optimizer: 'optimize.optimizer' = None,
+                       parallelize_fitting: bool = False,
+                       store_optimizer_output: bool = True):
+        """
+        Performs the Fitting of the dose-response curves (using pypesto).
+        Sets the parameters of the optimization procedure to be the the
+        DoseResponseModels parameters.
 
-        self._set_fitting_problem()
+        Parameters:
+        -----------
+        n_starts:
+            number of optimization starts
 
-        # initialize for parallelization
-        if paral_fitting:
+        optimizer:
+            Optimizer, from the list of pypesto Optimizer.
+
+        parallelize_fitting
+            Indicates, whether fitting is parallelized.
+
+        store_optimizer_output:
+            Indicates if the result object (including metadata) is stored.
+        :return:
+        """
+        if parallelize_fitting:
             engine = pypesto.engine.MultiProcessEngine()
         else:
             engine = None
 
         # fitting
-        pypesto_result = optimize.minimize(self.pypesto_problem,
-                                           optimizer=optimizer,
-                                           engine=engine,
-                                           n_starts=n_starts)
+        pypesto_result = optimize.minimize(
+            self.pypesto_problem,
+            optimizer=optimizer,
+            startpoint_method=pypesto.startpoint.latin_hypercube,
+            result=self.pypesto_result,
+            engine=engine,
+            n_starts=n_starts,
+            progress_bar=False)
 
         # Extract best fit.
         self.parameters = pypesto_result.optimize_result.as_list()[0]['x']
@@ -156,35 +244,101 @@ class DoseResponseModelBase(abc.ABC):
         if store_optimizer_output:
             self.pypesto_result = pypesto_result
 
-    def _get_optimizations_starts(self,
-                                  bounds: np.array,
-                                  n_starts: int = 10):
-        # Sample initial values in the bounds via Latin Hypercube sampling...
+    def sample_parameters(self,
+                          n_samples: int,
+                          sampler: sample.Sampler = None):
+        """
+        Samples parameters according to the posterior given the
+        dose response data. Stores the samples in
+        `self.pypesto_result.sample_result`.
 
-        raise NotImplementedError
+        Parameters:
+        -----------
+        n_samples:
+            number of samples drawn.
+        sampler:
+            pypesto sampler, that shall be used.
+        """
+        if self.pypesto_result is None:
+            self.fit_parameters()
+
+        self.pypesto_result = sample.sample(self.pypesto_problem,
+                                            n_samples=n_samples,
+                                            sampler=sampler,
+                                            result=self.pypesto_result)
+
+        self.n_samples = n_samples
+
+        # compute auto-correlation, burn-in and effective sample size.
+        sample.effective_sample_size(self.pypesto_result)
+
+        # check convergence.
+        if self.pypesto_result.sample_result['effective_sample_size'] is None:
+            raise RuntimeWarning('Sampling has not converged yet.')
+
+    def get_ith_parameter_sample(self,
+                                  i: int):
+        """
+        Returns the i-th parameter sample.
+        """
+        if i > self.n_samples:
+            raise IndexError("Index exceeds number of samples.")
+        else:
+            return self.pypesto_result.sample_result['trace_x'][0][i]
 
     def _set_dose_and_response(self,
                                dose_data: np.array,
                                response_data: np.array):
         """
-        sets dose and response data. Checks dimensions
+        Sets dose and response data. Checks dimensions
 
         Raises:
             ValueError: if doses and responses do not have equal size...
         """
+        # no data provided
+        if (dose_data is None) and (response_data is None):
 
-        if dose_data.size == response_data.size:
+            self.dose_data = None
+            self.response_data = None
+
+        # incomplete data is provided
+        elif (dose_data is not None) is not (response_data is not None):
+
+            warnings.warn("Only one of dose_data and response_data is "
+                          "provided. Therefore this is neglected.")
+
+            self.dose_data = None
+            self.response_data = None
+
+        else:
+            # type cast, in case e.g. a list is provided...
+            dose_data = np.array(dose_data)
+            response_data = np.array(response_data)
+
+            # miss-match in size
+            if dose_data.size != response_data.size:
+                raise ValueError('Dose and response data do '
+                                 'not have equal size.')
+
+            # assign values, as all sanity checks passed.
             self.dose_data = dose_data
             self.response_data = response_data
-        else:
-            raise ValueError('Dose and response data do not have the '
-                             'equal size.')
 
-    def _set_fitting_problem(self):
+    def _set_fitting_problem(self,
+                             parameter_names: List[str] = None):
         """
-        sets the pypesto problem, that can be used for fitting and sampling of dose response models.
+        Sets the pypesto problem, that is used for fitting and sampling
+        of dose response models.
+
+        Parameters:
+        -----------
+        parameter_names:
+            List of parameter names.
         """
-        objective = pypesto.Objective(fun=self.evaluate_lsq_residual,
+        def obj_fun(parameters: np.array):
+            return self.evaluate_lsq_residual(parameters, gradient=True)
+
+        objective = pypesto.Objective(fun=obj_fun,
                                       grad=True)
 
         if (self.lb is not None) and (self.ub is not None):
@@ -192,8 +346,24 @@ class DoseResponseModelBase(abc.ABC):
 
         self.pypesto_problem = pypesto.Problem(objective=objective,
                                                lb=self.lb,
-                                               ub=self.ub)
+                                               ub=self.ub,
+                                               x_names=parameter_names)
 
     @abc.abstractmethod
     def _get_default_parameter_bounds(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def check_bliss_consistency(self):
+        """
+        Returns True, if the response of the dose response model is bound
+        to [0, 1].
+
+        In order to be valid for the Bliss combination model, every dose
+        response model needs to be bounded to the interval [0, 1].
+        (So that the response is interpretable as probability).
+
+        Further test f(0)==0 for monotone increasing and f(0)==1 for monotone
+        decreasing drugs.
+        """
         raise NotImplementedError
