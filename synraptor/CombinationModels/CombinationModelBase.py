@@ -388,8 +388,8 @@ class CombinationModelBase(abc.ABC):
         variance) and compares the samples to the mean of the dose response data.
         Here the burn in of the samples is not used.
 
-        The (1-alpha)/2 percentile of the samples is larger than the observed
-        average response (for two-sided).
+        Returns the probability, that the sampled response lies outside the
+        two-sided sample confidence interval.
 
         (When comparing results: Be aware, that all tests in SynRaptor are
         two-sided tests.)
@@ -411,7 +411,7 @@ class CombinationModelBase(abc.ABC):
         # compute mean response and adapt the variance
         try:
             n_replicates = len(response_data)
-        except:
+        except TypeError:
             n_replicates = 1
 
         sigma_data = self.sigma
@@ -425,7 +425,11 @@ class CombinationModelBase(abc.ABC):
                                                     sampler=sampler)
         # compute the percentiles.
         rank = np.sum(predictions < mean_response)/n_samples
-        return 2 * np.abs(1/2 - rank)
+
+        if rank < 1/2:
+            return 2*rank
+        else:
+            return 2 * (1-rank)
 
     def get_sampling_ci(self,
                         dose_combination: List,
@@ -438,7 +442,7 @@ class CombinationModelBase(abc.ABC):
         Computes sampling based confidence intervals of one
         validation experiment.
 
-        I.e. 100 * (1 - alpha) percent of the sampled predictions are within
+        I.e. 100 * alpha percent of the sampled predictions are within
         the CI.
 
         Parameters:
@@ -449,7 +453,7 @@ class CombinationModelBase(abc.ABC):
         alpha:
             confidence level of prediction interval (in [0, 1.0])
         sigma:
-            Standard deviation of the measurement error.
+            Standard deviation of a single measurement (error).
             Default is the sigma of the combination model `self.sigma`.
         n_replicates:
             number of replicates. Sigma is scaled such that the CI for the
@@ -475,7 +479,7 @@ class CombinationModelBase(abc.ABC):
         predictions = np.sort(predictions)
 
         # get min/max indices
-        idx_min = int(alpha/2*n_samples)
+        idx_min = int((1-alpha)/2*n_samples)
         idx_max = n_samples - idx_min
 
         return [predictions[idx_min], predictions[idx_max]]

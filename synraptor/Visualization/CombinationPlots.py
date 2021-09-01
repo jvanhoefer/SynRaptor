@@ -1,6 +1,7 @@
 """Visualization of dose response models."""
 import matplotlib.pyplot as plt
 import matplotlib.axes
+import seaborn
 
 import itertools
 import warnings
@@ -149,8 +150,8 @@ def plot_3d_surface(combination_model: CombinationModelBase,
         for (i_x, dose_x), (i_y, dose_y) in itertools.product(enumerate(x),
                                                               enumerate(y)):
 
-            ci = combination_model.get_likelihood_ratio_ci([dose_x, dose_y],
-                                                           alpha=ci_alpha)
+            ci = combination_model.get_sampling_ci([dose_x, dose_y],
+                                                   alpha=ci_alpha)
             ci_min[i_x, i_y] = ci[0]
             ci_max[i_x, i_y] = ci[1]
 
@@ -233,6 +234,77 @@ def plot_combination_sample_histogram(combination_model: CombinationModelBase,
     ax = plt.gca()
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
+
+    # plot mean response if available.
+    if response_data is not None:
+        response_data_mean = np.mean(response_samples)
+        plt.plot([response_data_mean, response_data_mean],
+                 plt.gca().get_ylim(),
+                 '--k')
+
+
+def plot_combination_sample_kde(combination_model: CombinationModelBase,
+                                dose_combination: List,
+                                response_data: Union[np.array, List[List], float] = None,
+                                n_samples: int = 10000,
+                                title: str = None,
+                                x_axis_label: str = 'dose',
+                                y_axis_label: str = 'response'):
+    """
+    Plots a kernel density estimation of sampled combination responses.
+
+    Parameters
+    ----------
+    combination_model:
+        Combination Model, that shall be plotted.
+    dose_combination:
+        dose combination, at which the histogram should be evaluated.
+    response_data:
+        response data. If multiple replicates are provided, the sigma of the
+        sampling is adapted to match the sample mean of the replicates.
+    n_samples:
+        number of samples, that are plotted.
+    title:
+        title of the histogram.
+    x_axis_label:
+        label of the x axis.
+    y_axis_label:
+        label of the y axis.
+    """
+    sigma = combination_model.sigma
+
+    if response_data is None:
+        n_replicates = 1
+    elif isinstance(response_data, float):
+        n_replicates = 1
+    else:
+        n_replicates = len(response_data)
+
+    response_samples = combination_model.get_sampling_predictions(
+        dose_combination=dose_combination,
+        sigma=sigma,
+        n_replicates=n_replicates,
+        n_samples=n_samples)
+
+    seaborn.kdeplot(response_samples,
+                    shade=True)
+
+    plt.xlabel(x_axis_label)
+    plt.ylabel(y_axis_label)
+    if title is not None:
+        plt.title(title)
+
+    # set right and upper axis visibility to False
+    ax = plt.gca()
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+
+    # plot mean response if available.
+    if response_data is not None:
+        response_data_mean = np.mean(response_samples)
+        plt.plot([response_data_mean, response_data_mean],
+                 plt.gca().get_ylim(),
+                 '--k')
 
 
 def _check_number_of_drugs(combination_model: CombinationModelBase):

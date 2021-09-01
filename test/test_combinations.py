@@ -422,6 +422,15 @@ class TestCombinations(unittest.TestCase):
                             alpha,
                             places=2)
 
+    def test_get_sampling_predictions(self):
+        raise NotImplementedError("Not implemented yet.")
+
+    def test_get_sampling_significance(self):
+        raise NotImplementedError("Not implemented yet.")
+
+    def get_sampling_ci(self):
+        raise NotImplementedError("Not implemented yet.")
+
 
 def _get_drug_list(inc: bool,
                    p0: np.ndarray,
